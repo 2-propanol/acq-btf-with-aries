@@ -12,13 +12,12 @@ description = "An unofficial telnet wrapper for \"ARIES / LYNX\" motor controlle
 name = "aries-python"
 optional = false
 python-versions = ">=3.6"
-version = "0.1.4"
+version = "0.2.0"
 
 [package.source]
-reference = "ddcf6dc939bf47f6ebb3d8e6786f6296b08c176b"
+reference = "8c5d2f0e90185510e77a17953ff1f5a5dcbb9834"
 type = "git"
 url = "https://github.com/2-propanol/aries_python"
-
 [[package]]
 category = "dev"
 description = "The uncompromising code formatter."
@@ -61,7 +60,6 @@ version = "1.1.0"
 reference = "84d561e3395f8b1508e9b746102bcf1571fd8103"
 type = "git"
 url = "https://github.com/elerac/EasyPySpin"
-
 [[package]]
 category = "dev"
 description = "Experimental type system extensions for programs checked with the mypy typechecker."
