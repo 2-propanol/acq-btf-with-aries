@@ -86,11 +86,21 @@ def tlpltvpv_to_xyzu(
     pan = np.sign(material[0]) * np.arccos(
         material[2] / np.linalg.norm(np.array([material[0], material[2]]))
     )
+
     # `tilt`は、`material`とxz平面のなす角。
-    material_xz = np.array([material[0], 0, material[2]])
-    tilt = np.arccos(np.inner(material, material_xz) / np.linalg.norm(material_xz))
+    if np.isclose(material[1], 0):
+        # 浮動小数点誤差によるnan回避（ex. arccos(1.0000000000000002 / 1.0)）
+        tilt = 0.0
+    else:
+        material_xz = np.array([material[0], 0, material[2]])
+        tilt = np.arccos(np.inner(material, material_xz) / np.linalg.norm(material_xz))
+
     # `light`は、(既にxz平面上にある)`light`とz軸とのなす角。
-    light = np.sign(light[0]) * np.arccos(light[2])
+    if np.isclose(light[2], 1):
+        # 浮動小数点誤差によるnan回避（ex. arccos(1.0000000000000002)）
+        light = 0.0
+    else:
+        light = np.sign(light[0]) * np.arccos(light[2])
 
     pan = -np.rad2deg(pan)
     tilt = 90 - np.rad2deg(tilt)
