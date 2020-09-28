@@ -1,6 +1,6 @@
-from aries import Aries
+import cv2
 import EasyPySpin
-import numpy as np
+from aries import Aries
 
 
 def main() -> None:
