@@ -22,10 +22,10 @@ def tlpltvpv_to_xyzu(
     """
     # 動径r=1としたときの球座標と見立てる
     # 素材の法線を(x,y,z)=(0,0,1)に固定したときの、カメラと光源との単位ベクトル。
-    tl = np.deg2rad(tl)
-    pl = np.deg2rad(pl)
-    tv = np.deg2rad(tv)
-    pv = np.deg2rad(pv)
+    tl = np.deg2rad(tl, dtype=np.float64)
+    pl = np.deg2rad(pl, dtype=np.float64)
+    tv = np.deg2rad(tv, dtype=np.float64)
+    pv = np.deg2rad(pv, dtype=np.float64)
     light = np.array([np.sin(tl) * np.cos(pl), np.sin(tl) * np.sin(pl), np.cos(tl)])
     camera = np.array([np.sin(tv) * np.cos(pv), np.sin(tv) * np.sin(pv), np.cos(tv)])
     material = np.array([0, 0, 1])
@@ -106,7 +106,12 @@ def tlpltvpv_to_xyzu(
     tilt = 90 - np.rad2deg(tilt)
     light = -np.rad2deg(light)
 
-    return pan, tilt, roll, light
+    return (
+        pan.astype(np.float16),
+        tilt.astype(np.float16),
+        roll.astype(np.float16),
+        light.astype(np.float16),
+    )
 
 
 def xyzu_to_tlpltvpv(
@@ -124,10 +129,10 @@ def xyzu_to_tlpltvpv(
         Tuple[float, float, float, float]: `tl`,`pl`,`tv`,`pv`
     """
     # degree を radian に変換
-    pan_radian = np.deg2rad(-pan)
-    tilt_radian = np.deg2rad(tilt - 90)
-    roll_radian = np.deg2rad(roll)
-    light_radian = np.deg2rad(-light)
+    pan_radian = np.deg2rad(-pan, dtype=np.float64)
+    tilt_radian = np.deg2rad(tilt - 90, dtype=np.float64)
+    roll_radian = np.deg2rad(roll, dtype=np.float64)
+    light_radian = np.deg2rad(-light, dtype=np.float64)
 
     # カメラを(x,y,z)=(0,0,1)に固定したときの、光源と素材の法線の単位ベクトル。
     camera_rect = np.array([0, 0, 1])
@@ -200,4 +205,9 @@ def xyzu_to_tlpltvpv(
         if tv > 90:
             warnings.warn("The `tv` value is over 90.", RuntimeWarning)
 
-    return tl, pl, tv, pv
+    return (
+        tl.astype(np.float16),
+        pl.astype(np.float16),
+        tv.astype(np.float16),
+        pv.astype(np.float16),
+    )
