@@ -196,6 +196,7 @@ def main() -> None:
             print("capture failed: ", scheduled_tlpltvpv[i])
             frames[i] = np.zeros((*acq_img_size, 3))
 
+    cap.release()
     print("compressing npz")
     # TODO: 露光時間などのconditionsをnpzに記録する
     np.savez_compressed(
@@ -203,6 +204,7 @@ def main() -> None:
         images=frames,
         angles=scheduled_tlpltvpv,
     )
+    return 0
 
 
 if __name__ == "__main__":
