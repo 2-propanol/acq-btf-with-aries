@@ -34,17 +34,24 @@ def main():
 
     while True:
         rot = calib_cam_stage.rot_matrix_from_pan_tilt_roll(*stage.position[0:3])
+
         _, frame = cap.read()
         frame = cv2.cvtColor(frame, cv2.COLOR_BayerBG2BGR)
-        lt = rot @ np.array([-1, -1, 0])
-        rt = rot @ np.array([1, -1, 0])
-        lb = rot @ np.array([-1, 1, 0])
-        rb = rot @ np.array([1, 1, 0])
-        lt = np.append(lt, 1.0)
-        rt = np.append(rt, 1.0)
-        lb = np.append(lb, 1.0)
-        rb = np.append(rb, 1.0)
 
+        world_lt = rot @ np.array([-1, -1, 0])
+        world_rt = rot @ np.array([1, -1, 0])
+        world_lb = rot @ np.array([-1, 1, 0])
+        world_rb = rot @ np.array([1, 1, 0])
+        camera_lt = calib_cam_stage.wrap_homogeneous_dot(cam_mat, world_lt)
+        camera_rt = calib_cam_stage.wrap_homogeneous_dot(cam_mat, world_rt)
+        camera_lb = calib_cam_stage.wrap_homogeneous_dot(cam_mat, world_lb)
+        camera_rb = calib_cam_stage.wrap_homogeneous_dot(cam_mat, world_rb)
+        camera_lt = tuple(camera_lt.astype(np.int))
+        camera_rt = tuple(camera_rt.astype(np.int))
+        camera_lb = tuple(camera_lb.astype(np.int))
+        camera_rb = tuple(camera_rb.astype(np.int))
+
+        # 中心ガイド線
         frame = cv2.line(
             frame,
             (left_border, top_border),
@@ -59,6 +66,8 @@ def main():
             (255, 255, 255),
             5,
         )
+
+        # 最大素材サイズガイド線
         frame = cv2.line(
             frame, (left_border, 0), (right_border, cam_height), (255, 255, 255), 5
         )
@@ -66,18 +75,11 @@ def main():
             frame, (right_border, 0), (left_border, cam_height), (255, 255, 255), 5
         )
 
-        frame = cv2.circle(
-            frame, tuple((cam_mat @ lt)[0:2].astype(np.int)), 20, (0, 0, 255), 5
-        )
-        frame = cv2.circle(
-            frame, tuple((cam_mat @ rt)[0:2].astype(np.int)), 20, (255, 0, 0), 5
-        )
-        frame = cv2.circle(
-            frame, tuple((cam_mat @ lb)[0:2].astype(np.int)), 20, (255, 0, 0), 5
-        )
-        frame = cv2.circle(
-            frame, tuple((cam_mat @ rb)[0:2].astype(np.int)), 20, (255, 0, 0), 5
-        )
+        # ステージ位置から推定した画像上の四隅点(右上が赤)
+        frame = cv2.circle(frame, camera_lt, 20, (0, 0, 255), 5)
+        frame = cv2.circle(frame, camera_rt, 20, (255, 0, 0), 5)
+        frame = cv2.circle(frame, camera_lb, 20, (255, 0, 0), 5)
+        frame = cv2.circle(frame, camera_rb, 20, (255, 0, 0), 5)
 
         frame = cv2.resize(frame, None, fx=VIEW_SCALE, fy=VIEW_SCALE)
         cv2.imshow("press q to quit", frame)

@@ -1,13 +1,16 @@
 """カメラとステージ位置のキャリブレーション"""
-from typing import Tuple
+from typing import Any, Tuple, Union
 
 import numpy as np
 import pandas as pd
+from nptyping import NDArray
 from scipy.linalg import lstsq
 from scipy.spatial.transform import Rotation
 
 
-def rot_matrix_from_pan_tilt_roll(pan: float, tilt: float, roll: float) -> np.ndarray:
+def rot_matrix_from_pan_tilt_roll(
+    pan: float, tilt: float, roll: float
+) -> NDArray[(3, 3), np.float]:
     """ステージの回転による移動先の世界座標を得るための行列を求める。
 
     世界座標の原点は素材の中心、カメラから素材の向きをz軸の正の方向とした右手座標系。
@@ -32,7 +35,7 @@ def rot_matrix_from_pan_tilt_roll(pan: float, tilt: float, roll: float) -> np.nd
         roll (float): [0, 360)
 
     Returns:
-        ndarray: dtype=np.float, shape=(3, 3)
+        ndarray: 回転行列。dtype=np.float, shape=(3, 3)
     """
     # degree を radian に変換
     pan_radian = np.deg2rad(pan)
@@ -60,7 +63,7 @@ def rot_matrix_from_pan_tilt_roll(pan: float, tilt: float, roll: float) -> np.nd
     return rot
 
 
-def obj_and_img_points_from_csv(filepath: str) -> np.ndarray:
+def obj_and_img_points_from_csv(filepath: str) -> NDArray[(Any, 5), np.float]:
     """キャリブレーション用csvから、世界座標とカメラ座標の組を返す。
 
     Args:
@@ -94,7 +97,7 @@ def obj_and_img_points_from_csv(filepath: str) -> np.ndarray:
 
 def no_calib(
     pictured_size: Tuple[float, float], center_point: Tuple[float, float]
-) -> np.ndarray:
+) -> NDArray[(3, 4), np.float]:
     """正面画像で写った素材の大きさと中心点から、世界座標とカメラ座標の変換行列を求める。
 
     ・画角0度（テレセントリック）
@@ -107,7 +110,7 @@ def no_calib(
         center_point (float, float): 正面画像で写った素材の中心点
 
     Returns:
-        ndarray: dtype=np.float, shape=(3, 4)
+        ndarray: カメラパラメータ行列。dtype=np.float, shape=(3, 4)
     """
     C = np.array(
         [
@@ -119,14 +122,16 @@ def no_calib(
     return C
 
 
-def calib_by_points(obj_and_img_points: np.ndarray) -> np.ndarray:
+def calib_by_points(
+    obj_and_img_points: NDArray[(Any, 5), np.float]
+) -> NDArray[(Any, 4), np.float]:
     """世界座標とカメラ座標の対応点からカメラパラメータ行列を求める。
 
     Args:
         obj_and_img_points (ndarray): dtype=np.float, shape=(N, 5)
 
     Returns:
-        ndarray: dtype=np.float, shape=(3, 4)
+        ndarray: カメラパラメータ行列。dtype=np.float, shape=(3, 4)
     """
     N = len(obj_and_img_points)
     A = np.zeros((N * 2, 11))
@@ -145,19 +150,47 @@ def calib_by_points(obj_and_img_points: np.ndarray) -> np.ndarray:
     return C
 
 
-def test_calib(camera_matrix: np.ndarray, obj_and_img_points: np.ndarray) -> None:
+def wrap_homogeneous_dot(
+    matrix: NDArray[(3, 4), np.float],
+    objpoints: Union[NDArray[(Any, 3), np.float], NDArray[3, np.float]],
+) -> Union[NDArray[(Any, 2), np.float], NDArray[2, np.float]]:
+    """3x1行列 = 3x4行列 @ 4x1行列のラッパー。3点をから2点を得る。
+
+    Args:
+        matrix (ndarray): 3x4カメラパラメータ行列
+        objpoints (ndarray): 世界座標X, Y, Z。単数でも複数でも良い。
+
+    Return:
+        ndarray: カメラ座標x, y。dtype=np.float, shape=(N, 2) or (2,)
+    """
+    if objpoints.ndim == 1:
+        if objpoints.shape[0] == 3:
+            imgpoint = matrix @ np.append(objpoints, 1.0)
+            imgpoint = imgpoint / imgpoint[2]
+            return imgpoint[0:2]
+
+    elif objpoints.ndim == 2:
+        if objpoints.shape[1] == 3:
+            objpoints = np.vstack((objpoints.T, np.ones(objpoints.shape[0])))
+            imgpoints = matrix @ objpoints
+            imgpoints = imgpoints / imgpoints[2, :]
+            return imgpoints.T[:, 0:2]
+
+    raise ValueError(
+        "`matrix` shape must be (3,) or (N, 3). inputed shape is ", objpoints.shape
+    )
+
+
+def test_calib(
+    camera_matrix: NDArray[(3, 4), np.float],
+    obj_and_img_points: NDArray[(Any, 5), np.float],
+) -> None:
     """キャリブレーションの精度を確認する"""
-    diff_sum = np.array((0, 0))
-    for obj_img in obj_and_img_points:
-        predicted_imgpoint = camera_matrix @ np.array(
-            (obj_img[0], obj_img[1], obj_img[2], 1.0)
-        )
-        predicted_imgpoint = predicted_imgpoint / predicted_imgpoint[2]
-        diff = np.array(
-            ((obj_img[3] - predicted_imgpoint[0]), (obj_img[4] - predicted_imgpoint[1]))
-        )
-        # print("true imgpoint:", np.array((obj_img[3],obj_img[4])).round(1))
-        # print("         diff:", diff.round(1))
-        diff_sum = diff_sum + diff ** 2
-    print("n: ", len(obj_and_img_points))
-    print("SD: ", (diff_sum / len(obj_and_img_points)) ** 0.5)
+    N = len(obj_and_img_points)
+
+    true_imgpoint = obj_and_img_points[:, 3:5]
+    pred_imgpoint = wrap_homogeneous_dot(camera_matrix, obj_and_img_points[:, 0:3])
+    diff = true_imgpoint - pred_imgpoint
+    diff_SD = (np.sum(diff ** 2, axis=0) / N) ** 0.5
+    print("n: ", N)
+    print("SD: ", diff_SD)
