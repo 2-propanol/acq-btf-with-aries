@@ -4,7 +4,7 @@ import EasyPySpin
 import numpy as np
 from aries import Aries
 
-import calib_cam_stage
+import calib_utils
 
 
 CAM_ID: int = 0
@@ -32,8 +32,9 @@ def main():
     bottom_border = cam_height - top_border
 
     stage = Aries()
-    pts = calib_cam_stage.obj_and_img_points_from_csv("calib_cam_stage.csv")
-    cam_mat = calib_cam_stage.calib_by_points(pts)
+    # pts = calib_utils.obj_and_img_points_from_csv("calib_utils.csv")
+    pts = np.load("corresponds.npy")
+    cam_mat = calib_utils.calib_by_points(pts)
 
     dst_imgpoints = np.array(
         ((0, 0), (IMG_SIZE[0], 0), (0, IMG_SIZE[1]), (IMG_SIZE[0], IMG_SIZE[1])),
@@ -41,13 +42,13 @@ def main():
     )
 
     while True:
-        rot = calib_cam_stage.rot_matrix_from_pan_tilt_roll(*stage.position[0:3])
+        rot = calib_utils.rot_matrix_from_pan_tilt_roll(*stage.position[0:3])
 
         _, frame = cap.read()
         frame = cv2.cvtColor(frame, cv2.COLOR_BayerBG2BGR)
 
         world_lt_rt_lb_rb = rot @ np.array(WORLD_LT_RT_LB_RB).T
-        camera_lt_rt_lb_rb = calib_cam_stage.wrap_homogeneous_dot(cam_mat, world_lt_rt_lb_rb.T)
+        camera_lt_rt_lb_rb = calib_utils.wrap_homogeneous_dot(cam_mat, world_lt_rt_lb_rb.T)
         camera_lt = tuple(camera_lt_rt_lb_rb[0].astype(np.int))
         camera_rt = tuple(camera_lt_rt_lb_rb[1].astype(np.int))
         camera_lb = tuple(camera_lt_rt_lb_rb[2].astype(np.int))
