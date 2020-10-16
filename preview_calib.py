@@ -32,7 +32,7 @@ def main():
     bottom_border = cam_height - top_border
 
     stage = Aries()
-    # pts = calib_utils.obj_and_img_points_from_csv("calib_utils.csv")
+    # pts = calib_utils.obj_and_img_points_from_csv("corresponds.csv")
     pts = np.load("corresponds.npy")
     cam_mat = calib_utils.calib_by_points(pts)
 
