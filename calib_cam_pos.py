@@ -10,6 +10,9 @@ import calib_cam_stage
 CAM_ID: int = 0
 VIEW_SCALE: float = 0.5
 
+WORLD_LT_RT_LB_RB = ((-1, -1, 0), (1, -1, 0), (-1, 1, 0), (1, 1, 0))
+IMG_SIZE = (512, 512)
+
 
 def main():
     cap = EasyPySpin.VideoCapture(0)
@@ -32,35 +35,34 @@ def main():
     pts = calib_cam_stage.obj_and_img_points_from_csv("calib_cam_stage.csv")
     cam_mat = calib_cam_stage.calib_by_points(pts)
 
+    dst_imgpoints = np.array(
+        ((0, 0), (IMG_SIZE[0], 0), (0, IMG_SIZE[1]), (IMG_SIZE[0], IMG_SIZE[1])),
+        dtype=np.float32,
+    )
+
     while True:
         rot = calib_cam_stage.rot_matrix_from_pan_tilt_roll(*stage.position[0:3])
 
         _, frame = cap.read()
         frame = cv2.cvtColor(frame, cv2.COLOR_BayerBG2BGR)
 
-        world_lt = rot @ np.array([-1, -1, 0])
-        world_rt = rot @ np.array([1, -1, 0])
-        world_lb = rot @ np.array([-1, 1, 0])
-        world_rb = rot @ np.array([1, 1, 0])
-        camera_lt = calib_cam_stage.wrap_homogeneous_dot(cam_mat, world_lt)
-        camera_rt = calib_cam_stage.wrap_homogeneous_dot(cam_mat, world_rt)
-        camera_lb = calib_cam_stage.wrap_homogeneous_dot(cam_mat, world_lb)
-        camera_rb = calib_cam_stage.wrap_homogeneous_dot(cam_mat, world_rb)
-        camera_lt = tuple(camera_lt.astype(np.int))
-        camera_rt = tuple(camera_rt.astype(np.int))
-        camera_lb = tuple(camera_lb.astype(np.int))
-        camera_rb = tuple(camera_rb.astype(np.int))
+        world_lt_rt_lb_rb = rot @ np.array(WORLD_LT_RT_LB_RB).T
+        camera_lt_rt_lb_rb = calib_cam_stage.wrap_homogeneous_dot(cam_mat, world_lt_rt_lb_rb.T)
+        camera_lt = tuple(camera_lt_rt_lb_rb[0].astype(np.int))
+        camera_rt = tuple(camera_lt_rt_lb_rb[1].astype(np.int))
+        camera_lb = tuple(camera_lt_rt_lb_rb[2].astype(np.int))
+        camera_rb = tuple(camera_lt_rt_lb_rb[3].astype(np.int))
 
         # 中心ガイド線
-        frame = cv2.line(
+        frame_preview = cv2.line(
             frame,
             (left_border, top_border),
             (right_border, top_border),
             (255, 255, 255),
             5,
         )
-        frame = cv2.line(
-            frame,
+        frame_preview = cv2.line(
+            frame_preview,
             (left_border, bottom_border),
             (right_border, bottom_border),
             (255, 255, 255),
@@ -68,21 +70,27 @@ def main():
         )
 
         # 最大素材サイズガイド線
-        frame = cv2.line(
-            frame, (left_border, 0), (right_border, cam_height), (255, 255, 255), 5
+        frame_preview = cv2.line(
+            frame_preview, (left_border, 0), (right_border, cam_height), (255, 255, 255), 5
         )
-        frame = cv2.line(
-            frame, (right_border, 0), (left_border, cam_height), (255, 255, 255), 5
+        frame_preview = cv2.line(
+            frame_preview, (right_border, 0), (left_border, cam_height), (255, 255, 255), 5
         )
 
         # ステージ位置から推定した画像上の四隅点(右上が赤)
-        frame = cv2.circle(frame, camera_lt, 20, (0, 0, 255), 5)
-        frame = cv2.circle(frame, camera_rt, 20, (255, 0, 0), 5)
-        frame = cv2.circle(frame, camera_lb, 20, (255, 0, 0), 5)
-        frame = cv2.circle(frame, camera_rb, 20, (255, 0, 0), 5)
+        frame_preview = cv2.circle(frame_preview, camera_lt, 20, (0, 0, 255), 5)
+        frame_preview = cv2.circle(frame_preview, camera_rt, 20, (255, 0, 0), 5)
+        frame_preview = cv2.circle(frame_preview, camera_lb, 20, (255, 0, 0), 5)
+        frame_preview = cv2.circle(frame_preview, camera_rb, 20, (255, 0, 0), 5)
 
-        frame = cv2.resize(frame, None, fx=VIEW_SCALE, fy=VIEW_SCALE)
-        cv2.imshow("press q to quit", frame)
+        frame_preview = cv2.resize(frame_preview, None, fx=VIEW_SCALE, fy=VIEW_SCALE)
+        cv2.imshow("camera", frame_preview)
+
+        img_to_img_mat = cv2.getPerspectiveTransform(camera_lt_rt_lb_rb.astype(np.float32), dst_imgpoints)
+        frame_perspectived = cv2.warpPerspective(
+            frame, img_to_img_mat, IMG_SIZE, flags=cv2.INTER_CUBIC
+        )
+        cv2.imshow("perspective", frame_perspectived)
 
         key = cv2.waitKey(100)
         if key == ord("q"):
