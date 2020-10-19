@@ -33,8 +33,8 @@ def main():
 
     stage = Aries()
     # pts = calib_utils.obj_and_img_points_from_csv("corresponds.csv")
-    pts = np.load("corresponds.npy")
-    cam_mat = calib_utils.calib_by_points(pts)
+    # cam_mat = calib_utils.calib_by_points(pts)
+    cam_mat = np.load("camera_matrix.npy")
 
     dst_imgpoints = np.array(
         ((0, 0), (IMG_SIZE[0], 0), (0, IMG_SIZE[1]), (IMG_SIZE[0], IMG_SIZE[1])),
@@ -48,7 +48,9 @@ def main():
         frame = cv2.cvtColor(frame, cv2.COLOR_BayerBG2BGR)
 
         world_lt_rt_lb_rb = rot @ np.array(WORLD_LT_RT_LB_RB).T
-        camera_lt_rt_lb_rb = calib_utils.wrap_homogeneous_dot(cam_mat, world_lt_rt_lb_rb.T)
+        camera_lt_rt_lb_rb = calib_utils.wrap_homogeneous_dot(
+            cam_mat, world_lt_rt_lb_rb.T
+        )
         camera_lt = tuple(camera_lt_rt_lb_rb[0].astype(np.int))
         camera_rt = tuple(camera_lt_rt_lb_rb[1].astype(np.int))
         camera_lb = tuple(camera_lt_rt_lb_rb[2].astype(np.int))
@@ -72,10 +74,18 @@ def main():
 
         # 最大素材サイズガイド線
         frame_preview = cv2.line(
-            frame_preview, (left_border, 0), (right_border, cam_height), (255, 255, 255), 5
+            frame_preview,
+            (left_border, 0),
+            (right_border, cam_height),
+            (255, 255, 255),
+            5,
         )
         frame_preview = cv2.line(
-            frame_preview, (right_border, 0), (left_border, cam_height), (255, 255, 255), 5
+            frame_preview,
+            (right_border, 0),
+            (left_border, cam_height),
+            (255, 255, 255),
+            5,
         )
 
         # ステージ位置から推定した画像上の四隅点(右上が赤)
@@ -87,7 +97,10 @@ def main():
         frame_preview = cv2.resize(frame_preview, None, fx=VIEW_SCALE, fy=VIEW_SCALE)
         cv2.imshow("camera", frame_preview)
 
-        img_to_img_mat = cv2.getPerspectiveTransform(camera_lt_rt_lb_rb.astype(np.float32), dst_imgpoints)
+        # 射影変換後の画像を表示
+        img_to_img_mat = cv2.getPerspectiveTransform(
+            camera_lt_rt_lb_rb.astype(np.float32), dst_imgpoints
+        )
         frame_perspectived = cv2.warpPerspective(
             frame, img_to_img_mat, IMG_SIZE, flags=cv2.INTER_CUBIC
         )
