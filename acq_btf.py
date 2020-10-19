@@ -1,5 +1,6 @@
 """Aries4軸ステージでBTFを撮影する"""
 from itertools import product
+from pathlib import Path
 from typing import Any, Tuple
 
 import colour_demosaicing as cd
@@ -136,11 +137,11 @@ def acq_4d() -> NDArray[(Any, 4), Float16]:
 
     # 25枚
     THETA_PHI_PAIR_TO_ACQ = (
-        (0, 0),
-        (45, 0),
-        (45, 90),
-        (45, 180),
-        (45, 270),
+        (10, 0),
+        (30, 0),
+        (30, 90),
+        (30, 180),
+        (30, 270),
     )
 
     to_acq = product(THETA_PHI_PAIR_TO_ACQ, THETA_PHI_PAIR_TO_ACQ)
@@ -180,7 +181,15 @@ def schedule_acq(
     return acq_order_tlpltvpv, acq_order_xyzu
 
 
-def main() -> None:
+def main() -> int:
+    if Path(NPZ_FILENAME_TO_SAVE).exists():
+        print(f"file: [{NPZ_FILENAME_TO_SAVE}] already exists.")
+        return 2
+    if not Path(NPY_FILENAME_FOR_CAMERA_MATRIX).exists():
+        print(f"file: [{NPY_FILENAME_FOR_CAMERA_MATRIX}] does not exist.")
+        return 4
+
+    print("Waiting Aries.")
     stage = Aries()
 
     # 撮影する角度を決める
@@ -205,7 +214,7 @@ def main() -> None:
     obj_to_img_mat = np.load(NPY_FILENAME_FOR_CAMERA_MATRIX)
     dst_imgpoints = np.array(
         ((0, 0), (IMG_SIZE[0], 0), (0, IMG_SIZE[1]), (IMG_SIZE[0], IMG_SIZE[1])),
-        dtype=np.float,
+        dtype=np.float32
     )
 
     # 画像保存用のメモリ確保
@@ -221,7 +230,7 @@ def main() -> None:
 
         # stageが動き切るまで待って撮影
         stage.sleep_until_stop()
-        is_valid, frame = cap.readHDR(t_min=25000, t_max=250000, t_ref=100000)
+        is_valid, frame = cap.readHDR(t_min=ACQ_T_MIN_US, t_max=ACQ_T_MAX_US, t_ref=ACQ_T_REF_US)
 
         # stageを動かす
         if i + 1 < len(scheduled_xyzu):
@@ -237,11 +246,11 @@ def main() -> None:
         # 素材の四隅がカメラのどこに写るか計算する
         world_rot = rot_matrix_from_pan_tilt_roll(xyzu[0], xyzu[1], xyzu[2])
         material_edges = np.array(_WORLD_LT_RT_LB_RB, dtype=np.float) * 0.9
-        material_edges = material_edges @ world_rot
-        src_imgpoints = wrap_homogeneous_dot(obj_to_img_mat, material_edges)
+        material_edges = world_rot @ material_edges.T
+        src_imgpoints = wrap_homogeneous_dot(obj_to_img_mat, material_edges.T)
 
         # 射影変換を行い、素材の正面画像を得る
-        img_to_img_mat = cv2.getPerspectiveTransform(src_imgpoints, dst_imgpoints)
+        img_to_img_mat = cv2.getPerspectiveTransform(src_imgpoints.astype(np.float32), dst_imgpoints)
         frame = cv2.warpPerspective(
             frame, img_to_img_mat, IMG_SIZE, flags=cv2.INTER_CUBIC
         )
