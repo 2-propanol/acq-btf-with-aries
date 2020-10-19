@@ -10,8 +10,8 @@ from tqdm import tqdm
 
 from calib_utils import calib_by_points, calibed_rmse, rot_matrix_from_pan_tilt_roll
 
-TRY_XYZS = 10
-FILENAME_TO_SAVE_CORRESPONDS = "corresponds_test2.npy"
+TRY_XYZS = 20
+FILENAME_TO_SAVE_CORRESPONDS = "camera_matrix.npy"
 
 CAM_GAIN = 0
 CAM_AVERAGE = 3

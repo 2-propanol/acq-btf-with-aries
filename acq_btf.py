@@ -11,21 +11,16 @@ from aries import Aries
 from nptyping import Float16, NDArray
 from tqdm import trange
 
-from calib_cam_stage import (
-    calib_by_points,
-    obj_and_img_points_from_csv,
-    rot_matrix_from_pan_tilt_roll,
-    wrap_homogeneous_dot,
-)
-from transcoord import tlpltvpv_to_xyzu, xyzu_to_tlpltvpv
+from calib_utils import rot_matrix_from_pan_tilt_roll, wrap_homogeneous_dot
+from transcoord import tlpltvpv_to_xyzu
 
-NPZ_FILENAME_TO_SAVE = "SweatNavyBlue-2D.btf.npz"
-CSV_FILENAME_FOR_CALIB = "calib_cam_stage.csv"
+NPZ_FILENAME_TO_SAVE = "ARMarker-4D.btf.npz"
+NPY_FILENAME_FOR_CAMERA_MATRIX = "camera_matrix.npy"
 
 # 露光時間（単位:us）
-ACQ_T_MIN_US = 25000
-ACQ_T_MAX_US = 250000
-ACQ_T_REF_US = 100000
+ACQ_T_MIN_US = 2500
+ACQ_T_MAX_US = 25000
+ACQ_T_REF_US = 10000
 
 ACQ_GAIN = 0
 ACQ_AVERAGE = 3
@@ -175,7 +170,7 @@ def schedule_acq(
         [tlpltvpv_to_xyzu(*tlpltvpv) for tlpltvpv in to_acq],
         columns=["pan", "tilt", "roll", "light"],
     )
-    to_acq_xyzu = to_acq_xyzu.round(4)
+    to_acq_xyzu = to_acq_xyzu.astype(np.float32).round(4)
 
     df_tlpltvpv_xyzu = pd.concat([to_acq_tlpltvpv, to_acq_xyzu], axis=1)
     acq_order = df_tlpltvpv_xyzu.sort_values(["light", "pan", "tilt", "roll"])
@@ -207,9 +202,7 @@ def main() -> None:
     cap.average_num = ACQ_AVERAGE
 
     # カメラパラメータ行列読み込み
-    obj_to_img_mat = calib_by_points(
-        obj_and_img_points_from_csv(CSV_FILENAME_FOR_CALIB)
-    )
+    obj_to_img_mat = np.load(NPY_FILENAME_FOR_CAMERA_MATRIX)
     dst_imgpoints = np.array(
         ((0, 0), (IMG_SIZE[0], 0), (0, IMG_SIZE[1]), (IMG_SIZE[0], IMG_SIZE[1])),
         dtype=np.float,
@@ -257,6 +250,8 @@ def main() -> None:
         frames[i] = frame.astype(np.float32)
 
     cap.release()
+    del stage
+
     print("compressing npz")
     # TODO: 露光時間などのconditionsをnpzに記録する
     np.savez_compressed(
