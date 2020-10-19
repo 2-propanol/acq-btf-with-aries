@@ -2,14 +2,16 @@ from pathlib import Path
 
 import cv2
 import EasyPySpin
+import matplotlib.pyplot as plt
 import numpy as np
 from aries import Aries
+from mpl_toolkits.mplot3d import Axes3D
 from tqdm import tqdm
 
-from calib_utils import rot_matrix_from_pan_tilt_roll
+from calib_utils import calib_by_points, calibed_rmse, rot_matrix_from_pan_tilt_roll
 
-TRY_XYZS = 15
-FILENAME_TO_SAVE_CORRESPONDS = "corresponds.npy"
+TRY_XYZS = 10
+FILENAME_TO_SAVE_CORRESPONDS = "corresponds_test2.npy"
 
 CAM_GAIN = 0
 CAM_AVERAGE = 3
@@ -20,18 +22,18 @@ aruco = cv2.aruco
 ar_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
 
 _AR_ID_TO_WORLD_XYZ = np.array(
-        (
-            (-0.7, -0.7, 0.0),
-            (0.0, -0.7, 0.0),
-            (0.7, -0.7, 0.0),
-            (-0.7, 0.0, 0.0),
-            (0.0, 0.0, 0.0),
-            (0.7, 0.0, 0.0),
-            (-0.7, 0.7, 0.0),
-            (0.0, 0.7, 0.0),
-            (0.7, 0.7, 0.0),
-        )
+    (
+        (-0.7, -0.7, 0.0),
+        (0.0, -0.7, 0.0),
+        (0.7, -0.7, 0.0),
+        (-0.7, 0.0, 0.0),
+        (0.0, 0.0, 0.0),
+        (0.7, 0.0, 0.0),
+        (-0.7, 0.7, 0.0),
+        (0.0, 0.7, 0.0),
+        (0.7, 0.7, 0.0),
     )
+)
 
 
 def test_ar_reader():
@@ -42,21 +44,19 @@ def test_ar_reader():
     cap.average_num = CAM_AVERAGE
 
     while True:
-        # 撮影
         _, frame = cap.read()
         frame = cv2.cvtColor(frame, cv2.COLOR_BayerBG2BGR)
 
-        # 手動の二値化試したけどあんまり良くならなかった
+        # ARマーカー検出
         corners, ids, rejected_corners = aruco.detectMarkers(frame, ar_dict)
         aruco.drawDetectedMarkers(frame, corners, ids, (0, 255, 0))
         aruco.drawDetectedMarkers(frame, rejected_corners, borderColor=(0, 0, 255))
 
         if len(corners) > 0:
             # 各ARマーカーについて
-            for ar_corner, ar_id in zip(corners, ids):
+            for ar_corner in corners:
                 # カメラに写った中心座標を計算
                 ar_center = ar_corner[0].mean(axis=0)
-
                 frame = cv2.circle(
                     frame, tuple(ar_center.astype(np.int)), 7, (0, 0, 255), -1
                 )
@@ -79,16 +79,27 @@ def auto_calib():
     # cap.set(cv2.CAP_PROP_GAMMA, 1.0)
     cap.average_num = CAM_AVERAGE
 
-    xyzs = np.random.rand(TRY_XYZS, 3)
-    xyzs[:, 0] = xyzs[:, 0] * 120 - 60
-    xyzs[:, 1] = xyzs[:, 1] * 60 + 30
-    xyzs[:, 2] = xyzs[:, 2] * 45
+    # 対応点の対象をランダムに決定
+    ## 1st half: 60 <= tilt < 90
+    xyzs_1st_half = np.random.rand((TRY_XYZS + 1) // 2, 3)
+    xyzs_1st_half[:, 0] = xyzs_1st_half[:, 0] * 120 - 60
+    xyzs_1st_half[:, 1] = xyzs_1st_half[:, 1] * 30 + 60
+    xyzs_1st_half[:, 2] = xyzs_1st_half[:, 2] * 45
+    ## pan順に並び変える
+    xyzs_1st_half = xyzs_1st_half[np.argsort(xyzs_1st_half[:, 0])]
+
+    ## 2nd half: 30 <= tilt < 60
+    xyzs_2nd_half = np.random.rand(TRY_XYZS // 2, 3)
+    xyzs_2nd_half[:, 0] = xyzs_2nd_half[:, 0] * 120 - 60
+    xyzs_2nd_half[:, 1] = xyzs_2nd_half[:, 1] * 30 + 30
+    xyzs_2nd_half[:, 2] = xyzs_2nd_half[:, 2] * 45
+    ## pan順に並び変える
+    xyzs_2nd_half = xyzs_2nd_half[np.argsort(xyzs_2nd_half[:, 0])[::-1]]
+
+    xyzs = np.concatenate((xyzs_1st_half, xyzs_2nd_half))
 
     # Ariesの精度は小数点以下3桁まで
     xyzs = xyzs.round(decimals=2)
-
-    # pan順に並び変える
-    xyzs = xyzs[np.argsort(xyzs[:, 0])]
 
     corresponds = []
     schedule = tqdm(xyzs)
@@ -133,11 +144,35 @@ def auto_calib():
                 # 対応点として記録
                 corresponds.append(np.append(world_xyz, ar_center))
 
-    # 取得できた対応点の数を表示し、npyに保存
-    print("Valid points:", len(corresponds))
-    np.save(FILENAME_TO_SAVE_CORRESPONDS, np.array(corresponds))
-
     cap.release()
+    del stage
+
+    # キャリブレーションを行い、評価を表示し、カメラ行列をnpyに保存
+    corresponds = np.array(corresponds)
+    print("Valid points:", len(corresponds))
+
+    cam_mat = calib_by_points(corresponds)
+    rmse = calibed_rmse(cam_mat, corresponds)
+    print("RMSE:", rmse)
+
+    print("camera matrix:\n", cam_mat)
+
+    fig = plt.figure()
+    ax = Axes3D(fig)
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Z")
+    ax.plot(
+        corresponds[:, 0],
+        corresponds[:, 1],
+        corresponds[:, 2],
+        marker="o",
+        linestyle="None",
+    )
+    plt.show()
+
+    np.save(FILENAME_TO_SAVE_CORRESPONDS, cam_mat)
+    print(f"saved camera matrix to [{FILENAME_TO_SAVE_CORRESPONDS}]")
 
 
 if __name__ == "__main__":

@@ -181,16 +181,15 @@ def wrap_homogeneous_dot(
     )
 
 
-def test_calib(
+def calibed_rmse(
     camera_matrix: NDArray[(3, 4), np.float],
     obj_and_img_points: NDArray[(Any, 5), np.float],
-) -> None:
-    """キャリブレーションの精度を確認する"""
+) -> NDArray[(2,), np.float]:
+    """キャリブレーションの精度を確認する（RMSEを返す）"""
     N = len(obj_and_img_points)
 
     true_imgpoint = obj_and_img_points[:, 3:5]
     pred_imgpoint = wrap_homogeneous_dot(camera_matrix, obj_and_img_points[:, 0:3])
     diff = true_imgpoint - pred_imgpoint
-    diff_SD = (np.sum(diff ** 2, axis=0) / N) ** 0.5
-    print("n: ", N)
-    print("SD: ", diff_SD)
+    rmse = (np.sum(diff ** 2, axis=0) / N) ** 0.5
+    return rmse

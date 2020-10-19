@@ -42,7 +42,7 @@ colorama = ["colorama (>=0.4.3)"]
 d = ["aiohttp (>=3.3.2)", "aiohttp-cors"]
 
 [[package]]
-category = "dev"
+category = "main"
 description = "Python package for providing Mozilla's CA Bundle."
 name = "certifi"
 optional = false
@@ -94,7 +94,7 @@ plotting = ["backports.functools-lru-cache", "matplotlib"]
 read-the-docs = ["mock", "networkx", "numpy", "pygraphviz", "sphinxcontrib-bibtex"]
 
 [[package]]
-category = "dev"
+category = "main"
 description = "Composable style cycles"
 name = "cycler"
 optional = false
@@ -152,7 +152,7 @@ qa = ["flake8 (3.7.9)"]
 testing = ["Django (<3.1)", "colorama", "docopt", "pytest (>=3.9.0,<5.0.0)"]
 
 [[package]]
-category = "dev"
+category = "main"
 description = "A fast implementation of the Cassowary constraint solver"
 name = "kiwisolver"
 optional = false
@@ -160,7 +160,7 @@ python-versions = ">=3.6"
 version = "1.2.0"
 
 [[package]]
-category = "dev"
+category = "main"
 description = "Python plotting package"
 name = "matplotlib"
 optional = false
@@ -298,7 +298,7 @@ python-versions = ">=3.5"
 version = "2.7.1"
 
 [[package]]
-category = "dev"
+category = "main"
 description = "Python parsing module"
 name = "pyparsing"
 optional = false
@@ -422,7 +422,7 @@ python-versions = "*"
 version = "0.2.5"
 
 [metadata]
-content-hash = "f7b480d53e1c41341c722985ebbcf8927bd2263fb01f68cf10f015b8ab0530eb"
+content-hash = "e1edf7c1815b1bdac7600f2353866b22e5ad682def13697761d704aeb25f4c9a"
 lock-version = "1.0"
 python-versions = "^3.8"
 
