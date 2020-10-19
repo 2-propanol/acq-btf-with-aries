@@ -70,7 +70,7 @@ def tlpltvpv_to_xyzu(
             np.linalg.norm(material), 1
         ), "The 2nd rotated material vector is not a unit vector."
     else:
-        roll = 0.0
+        roll = np.array(0.0)
 
     # `material`がxz平面より上にあるようにする。
     if material[1] < 0:
@@ -79,7 +79,7 @@ def tlpltvpv_to_xyzu(
         # material = rot.apply(material)
         light = light * np.array([-1, -1, 1])
         material = material * np.array([-1, -1, 1])
-        roll = (roll + 180) % 360
+        roll = np.array((roll + 180) % 360)
     assert material[1] >= 0, "The `tilt` value will over 90."
 
     # `pan`は、`material`をxz平面に投射したときのz軸とのなす角。
@@ -90,7 +90,7 @@ def tlpltvpv_to_xyzu(
     # `tilt`は、`material`とxz平面のなす角。
     if np.isclose(material[1], 0):
         # 浮動小数点誤差によるnan回避（ex. arccos(1.0000000000000002 / 1.0)）
-        tilt = 0.0
+        tilt = np.array(0.0)
     else:
         material_xz = np.array([material[0], 0, material[2]])
         tilt = np.arccos(np.inner(material, material_xz) / np.linalg.norm(material_xz))
@@ -98,7 +98,7 @@ def tlpltvpv_to_xyzu(
     # `light`は、(既にxz平面上にある)`light`とz軸とのなす角。
     if np.isclose(light[2], 1):
         # 浮動小数点誤差によるnan回避（ex. arccos(1.0000000000000002)）
-        light = 0.0
+        light = np.array(0.0)
     else:
         light = np.sign(light[0]) * np.arccos(light[2])
 
@@ -107,10 +107,10 @@ def tlpltvpv_to_xyzu(
     light = -np.rad2deg(light)
 
     return (
-        pan.astype(np.float16),
-        tilt.astype(np.float16),
-        roll.astype(np.float16),
-        light.astype(np.float16),
+        pan.astype(np.float32),
+        tilt.astype(np.float32),
+        roll.astype(np.float32),
+        light.astype(np.float32),
     )
 
 
@@ -178,8 +178,8 @@ def xyzu_to_tlpltvpv(
 
     # z軸から見たときのtl, pl。
     if np.isclose(light_rect[2], 1):
-        tl = 0.0
-        pl = 0.0
+        tl = np.array(0.0)
+        pl = np.array(0.0)
     else:
         tl = np.rad2deg(np.arccos(light_rect[2]))
         pl = np.sign(light_rect[1]) * np.rad2deg(
@@ -189,8 +189,8 @@ def xyzu_to_tlpltvpv(
 
     # z軸から見たときのtv, pv。
     if np.isclose(camera_rect[2], 1):
-        tv = 0.0
-        pv = 0.0
+        tv = np.array(0.0)
+        pv = np.array(0.0)
     else:
         tv = np.rad2deg(np.arccos(camera_rect[2]))
         pv = np.sign(camera_rect[1]) * np.rad2deg(
@@ -206,8 +206,8 @@ def xyzu_to_tlpltvpv(
             warnings.warn("The `tv` value is over 90.", RuntimeWarning)
 
     return (
-        tl.astype(np.float16),
-        pl.astype(np.float16),
-        tv.astype(np.float16),
-        pv.astype(np.float16),
+        tl.astype(np.float32),
+        pl.astype(np.float32),
+        tv.astype(np.float32),
+        pv.astype(np.float32),
     )
