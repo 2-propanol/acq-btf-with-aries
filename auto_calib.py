@@ -37,6 +37,36 @@ _AR_ID_TO_WORLD_XYZ = np.array(
     )
 )
 
+_AR_ID_TO_WORLD_XYZ_40X40 = np.array(
+    (
+        (-0.85, -0.85, 0.0),
+        (-0.50, -0.85, 0.0),
+        (0.00, -0.85, 0.0),
+        (0.35, -0.85, 0.0),
+        (0.75, -0.85, 0.0),
+        (-0.85, -0.45, 0.0),
+        (-0.50, -0.35, 0.0),
+        (-0.05, -0.50, 0.0),
+        (0.30, -0.35, 0.0),
+        (0.85, -0.40, 0.0),
+        (-0.85, 0.10, 0.0),
+        (-0.45, 0.05, 0.0),
+        (-0.05, -0.05, 0.0),
+        (0.30, 0.00, 0.0),
+        (0.65, -0.05, 0.0),
+        (-0.75, 0.50, 0.0),
+        (-0.40, 0.40, 0.0),
+        (-0.05, 0.30, 0.0),
+        (0.40, 0.35, 0.0),
+        (0.80, 0.30, 0.0),
+        (-0.80, 0.85, 0.0),
+        (-0.40, 0.75, 0.0),
+        (-0.05, 0.85, 0.0),
+        (0.35, 0.70, 0.0),
+        (0.80, 0.80, 0.0),
+    )
+)
+
 
 def test_ar_reader():
     cap = EasyPySpin.VideoCaptureEX(0)
@@ -137,19 +167,24 @@ def auto_calib():
         frame = cv2.cvtColor(frame, cv2.COLOR_BayerBG2BGR)
 
         # ARマーカー検出
-        # （手動の二値化を試したが、あまり良くならなかった）
+        # corners: list[NDArray[(同一IDのARマーカーの個数, 4, 2), np.float32]]
+        # ids: Optional[NDArray[(検出したARマーカーIDの個数, 1), np.int32]]
         corners, ids, _ = aruco.detectMarkers(frame, ar_dict)
 
-        if len(corners) > 0:
+        # 何も検出されなければ次のポジションへ
+        # `ids = None`による"TypeError: 'NoneType' object is not iterable"の回避
+        if len(corners) == 0:
+            continue
+
             # 各ARマーカーについて
             for ar_corner, ar_id in zip(corners, ids):
-                # ARマーカーの中心点は価値が低い(常に画像中心にある)ので廃棄
-                if ar_id[0] == 4:
+            # 予期していないIDが検出された場合無視する
+            if ar_id[0] >= len(_AR_ID_TO_WORLD_XYZ_40X40):
                     continue
 
                 # ARマーカーの世界座標を計算
                 world_rot = rot_matrix_from_pan_tilt_roll(*stage.position[0:3])
-                world_xyz = _AR_ID_TO_WORLD_XYZ[ar_id[0]]
+            world_xyz = _AR_ID_TO_WORLD_XYZ_40X40[ar_id[0]]
                 world_xyz = world_rot @ world_xyz
 
                 # カメラに写った中心座標を計算
