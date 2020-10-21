@@ -177,19 +177,19 @@ def wrap_homogeneous_dot(
             return imgpoints.T[:, 0:2]
 
     raise ValueError(
-        "`matrix` shape must be (3,) or (N, 3). inputed shape is ", objpoints.shape
+        "`objpoints` shape must be (3,) or (N, 3). inputed shape is ", objpoints.shape
     )
 
 
 def calibed_rmse(
     camera_matrix: NDArray[(3, 4), np.float],
     obj_and_img_points: NDArray[(Any, 5), np.float],
-) -> NDArray[(2,), np.float]:
-    """キャリブレーションの精度を確認する（RMSEを返す）"""
+) -> Tuple[NDArray[(2,), np.float], NDArray[(Any, 2), np.float]]:
+    """キャリブレーションの精度を確認する（RMSEとdiffを返す）"""
     N = len(obj_and_img_points)
 
     true_imgpoint = obj_and_img_points[:, 3:5]
     pred_imgpoint = wrap_homogeneous_dot(camera_matrix, obj_and_img_points[:, 0:3])
     diff = true_imgpoint - pred_imgpoint
     rmse = (np.sum(diff ** 2, axis=0) / N) ** 0.5
-    return rmse
+    return rmse, diff

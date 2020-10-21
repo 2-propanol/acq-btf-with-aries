@@ -152,10 +152,15 @@ def auto_calib():
     print("Valid points:", len(corresponds))
 
     cam_mat = calib_by_points(corresponds)
-    rmse = calibed_rmse(cam_mat, corresponds)
+    print("camera matrix:\n", cam_mat)
+
+    rmse, diff = calibed_rmse(cam_mat, corresponds)
     print("RMSE:", rmse)
 
-    print("camera matrix:\n", cam_mat)
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+    ax.scatter(diff[:, 0], diff[:, 1])
+    fig.show()
 
     fig = plt.figure()
     ax = Axes3D(fig)
