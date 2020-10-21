@@ -17,6 +17,9 @@ CAM_GAIN = 5
 CAM_AVERAGE = 3
 CAM_EXPOSURE_US = 50000
 
+PAN_ROTATE_RANGE = 120
+TILT_ROTATE_RANGE = 60
+ROLL_ROTATE_RANGE = 45
 USE_U_AXIS = False
 
 # 以下内部用定数
@@ -102,6 +105,13 @@ def test_ar_reader():
 
 
 def auto_calib():
+    if not (0 <= PAN_ROTATE_RANGE <= 180):
+        print("invalid `PAN_ROTATE_RANGE`")
+    if not (0 <= TILT_ROTATE_RANGE <= 90):
+        print("invalid `PAN_ROTATE_RANGE`")
+    if not (0 < PAN_ROTATE_RANGE <= 360):
+        print("invalid `PAN_ROTATE_RANGE`")
+
     stage = Aries()
 
     # U軸固定モード(`USE_U_AXIS=False`)の場合、
@@ -123,18 +133,21 @@ def auto_calib():
     cap.average_num = CAM_AVERAGE
 
     # 対応点の対象をランダムに決定
-    ## 1st half: 60 <= tilt < 90
+    ## 1st half: tilt上側, 2nd half: tilt下側
     xyzs_1st_half = np.random.rand((TRY_XYZS + 1) // 2, 3)
-    xyzs_1st_half[:, 0] = xyzs_1st_half[:, 0] * 120 - 60
-    xyzs_1st_half[:, 1] = xyzs_1st_half[:, 1] * 30 + 60
+    xyzs_1st_half[:, 0] = xyzs_1st_half[:, 0] * PAN_ROTATE_RANGE - PAN_ROTATE_RANGE / 2
+    xyzs_1st_half[:, 1] = xyzs_1st_half[:, 1] * TILT_ROTATE_RANGE / 2 + (
+        90 - TILT_ROTATE_RANGE / 2
+    )
     xyzs_1st_half[:, 2] = xyzs_1st_half[:, 2] * 45
     ## pan順に並び変える
     xyzs_1st_half = xyzs_1st_half[np.argsort(xyzs_1st_half[:, 0])]
 
-    ## 2nd half: 30 <= tilt < 60
     xyzs_2nd_half = np.random.rand(TRY_XYZS // 2, 3)
-    xyzs_2nd_half[:, 0] = xyzs_2nd_half[:, 0] * 120 - 60
-    xyzs_2nd_half[:, 1] = xyzs_2nd_half[:, 1] * 30 + 30
+    xyzs_2nd_half[:, 0] = xyzs_2nd_half[:, 0] * PAN_ROTATE_RANGE - PAN_ROTATE_RANGE / 2
+    xyzs_2nd_half[:, 1] = xyzs_2nd_half[:, 1] * TILT_ROTATE_RANGE / 2 + (
+        90 - TILT_ROTATE_RANGE
+    )
     xyzs_2nd_half[:, 2] = xyzs_2nd_half[:, 2] * 45
     ## pan順に並び変える
     xyzs_2nd_half = xyzs_2nd_half[np.argsort(xyzs_2nd_half[:, 0])[::-1]]
@@ -148,11 +161,11 @@ def auto_calib():
     schedule = tqdm(xyzs)
     for xyz in schedule:
         if USE_U_AXIS:
-        # xyzから、写りが良くなるであろうuを決める
-        if xyz[0] >= 0:
-            u = np.clip(xyz[0], 10, 80)
-        else:
-            u = np.clip(xyz[0], -80, -10)
+            # xyzから、写りが良くなるであろうuを決める
+            if xyz[0] >= 0:
+                u = np.clip(xyz[0], 10, 80)
+            else:
+                u = np.clip(xyz[0], -80, -10)
 
         schedule.set_description(
             f"[Valid points: {len(corresponds):3d}, "
@@ -176,22 +189,22 @@ def auto_calib():
         if len(corners) == 0:
             continue
 
-            # 各ARマーカーについて
-            for ar_corner, ar_id in zip(corners, ids):
+        # 各ARマーカーについて
+        for ar_corner, ar_id in zip(corners, ids):
             # 予期していないIDが検出された場合無視する
             if ar_id[0] >= len(_AR_ID_TO_WORLD_XYZ_40X40):
-                    continue
+                continue
 
-                # ARマーカーの世界座標を計算
-                world_rot = rot_matrix_from_pan_tilt_roll(*stage.position[0:3])
+            # ARマーカーの世界座標を計算
+            world_rot = rot_matrix_from_pan_tilt_roll(*stage.position[0:3])
             world_xyz = _AR_ID_TO_WORLD_XYZ_40X40[ar_id[0]]
-                world_xyz = world_rot @ world_xyz
+            world_xyz = world_rot @ world_xyz
 
-                # カメラに写った中心座標を計算
-                ar_center = ar_corner[0].mean(axis=0)
+            # カメラに写った中心座標を計算
+            ar_center = ar_corner[0].mean(axis=0)
 
-                # 対応点として記録
-                corresponds.append(np.append(world_xyz, ar_center))
+            # 対応点として記録
+            corresponds.append(np.append(world_xyz, ar_center))
 
     cap.release()
     del stage
