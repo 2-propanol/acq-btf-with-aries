@@ -13,11 +13,13 @@ from calib_utils import calib_by_points, calibed_rmse, rot_matrix_from_pan_tilt_
 TRY_XYZS = 20
 FILENAME_TO_SAVE_CORRESPONDS = "camera_matrix.npy"
 
-CAM_GAIN = 0
+CAM_GAIN = 5
 CAM_AVERAGE = 3
-CAM_EXPOSURE_US = 3500
+CAM_EXPOSURE_US = 50000
 
+USE_U_AXIS = False
 
+# 以下内部用定数
 aruco = cv2.aruco
 ar_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
 
@@ -72,6 +74,17 @@ def test_ar_reader():
 def auto_calib():
     stage = Aries()
 
+    # U軸固定モード(`USE_U_AXIS=False`)の場合、
+    # 事前にカメラから素材が見えるようにしておく。
+    if not USE_U_AXIS:
+        pos = list(stage.position)
+        if -10 < pos[3] < 10:
+            u = -10
+            pos[3] = u
+            stage.position = pos
+        else:
+            u = pos[3]
+
     # カメラ初期設定
     cap = EasyPySpin.VideoCaptureEX(0)
     cap.set(cv2.CAP_PROP_EXPOSURE, CAM_EXPOSURE_US)
@@ -104,6 +117,7 @@ def auto_calib():
     corresponds = []
     schedule = tqdm(xyzs)
     for xyz in schedule:
+        if USE_U_AXIS:
         # xyzから、写りが良くなるであろうuを決める
         if xyz[0] >= 0:
             u = np.clip(xyz[0], 10, 80)
