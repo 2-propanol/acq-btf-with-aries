@@ -47,19 +47,13 @@ def rot_matrix_from_pan_tilt_roll(
     tilt_axis = np.array([1, 0, 0])
     roll_axis = np.array([0, 0, 1])
 
-    # pan軸回転
+    # 各軸の回転行列
     rot_pan = Rotation.from_rotvec(pan_axis * pan_radian)
-    tilt_axis = rot_pan.apply(tilt_axis)
-    roll_axis = rot_pan.apply(roll_axis)
-
-    # tilt軸回転
     rot_tilt = Rotation.from_rotvec(tilt_axis * tilt_radian)
-    roll_axis = rot_tilt.apply(roll_axis)
-
-    # roll軸回転
     rot_roll = Rotation.from_rotvec(roll_axis * roll_radian)
 
-    rot = rot_roll.as_matrix() @ rot_tilt.as_matrix() @ rot_pan.as_matrix()
+    # roll, tilt, panの順に回転
+    rot = rot_pan.as_matrix() @ rot_tilt.as_matrix() @ rot_roll.as_matrix()
     return rot
 
 
