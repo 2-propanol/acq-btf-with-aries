@@ -7,6 +7,53 @@ from nptyping import NDArray
 from scipy.linalg import lstsq
 from scipy.spatial.transform import Rotation
 
+# ARマーカーIDからARマーカーの座標を得るための定数
+## 20x20画素ARマーカープレート
+_AR_ID_TO_WORLD_XYZ_20X20 = np.array(
+    (
+        (-0.7, -0.7, 0.0),
+        (0.0, -0.7, 0.0),
+        (0.7, -0.7, 0.0),
+        (-0.7, 0.0, 0.0),
+        (0.0, 0.0, 0.0),
+        (0.7, 0.0, 0.0),
+        (-0.7, 0.7, 0.0),
+        (0.0, 0.7, 0.0),
+        (0.7, 0.7, 0.0),
+    )
+)
+
+## 40x40画素ARマーカープレート
+_AR_ID_TO_WORLD_XYZ_40X40 = np.array(
+    (
+        (-0.85, -0.85, 0.0),
+        (-0.50, -0.85, 0.0),
+        (0.00, -0.85, 0.0),
+        (0.35, -0.85, 0.0),
+        (0.75, -0.85, 0.0),
+        (-0.85, -0.45, 0.0),
+        (-0.50, -0.35, 0.0),
+        (-0.05, -0.50, 0.0),
+        (0.30, -0.35, 0.0),
+        (0.85, -0.40, 0.0),
+        (-0.85, 0.10, 0.0),
+        (-0.45, 0.05, 0.0),
+        (-0.05, -0.05, 0.0),
+        (0.30, 0.00, 0.0),
+        (0.65, -0.05, 0.0),
+        (-0.75, 0.50, 0.0),
+        (-0.40, 0.40, 0.0),
+        (-0.05, 0.30, 0.0),
+        (0.40, 0.35, 0.0),
+        (0.80, 0.30, 0.0),
+        (-0.80, 0.85, 0.0),
+        (-0.40, 0.75, 0.0),
+        (-0.05, 0.85, 0.0),
+        (0.35, 0.70, 0.0),
+        (0.80, 0.80, 0.0),
+    )
+)
+
 
 def rot_matrix_from_pan_tilt_roll(
     pan: float, tilt: float, roll: float
@@ -154,7 +201,7 @@ def wrap_homogeneous_dot(
         matrix (ndarray): 3x4カメラパラメータ行列
         objpoints (ndarray): 世界座標X, Y, Z。単数でも複数でも良い。
 
-    Return:
+    Returns:
         ndarray: カメラ座標x, y。dtype=np.float, shape=(N, 2) or (2,)
     """
     if objpoints.ndim == 1:
@@ -179,7 +226,15 @@ def calibed_rmse(
     camera_matrix: NDArray[(3, 4), np.float],
     obj_and_img_points: NDArray[(Any, 5), np.float],
 ) -> Tuple[NDArray[(2,), np.float], NDArray[(Any, 2), np.float]]:
-    """キャリブレーションの精度を確認する（RMSEとdiffを返す）"""
+    """キャリブレーションの精度を確認する（RMSEとdiffを返す）
+
+    Args:
+        camera_matrix (ndarray): 3x4カメラパラメータ行列
+        obj_and_img_points (ndarray): dtype=np.float, shape=(N, 5)
+
+    Returns:
+        tuple: 「xとyについてのRMSE」と「各対応点に対する再投影誤差」のタプル
+    """
     N = len(obj_and_img_points)
 
     true_imgpoint = obj_and_img_points[:, 3:5]
@@ -187,3 +242,133 @@ def calibed_rmse(
     diff = true_imgpoint - pred_imgpoint
     rmse = (np.sum(diff ** 2, axis=0) / N) ** 0.5
     return rmse, diff
+
+
+def raw_xyz_to_cam_mat(
+    ar_id: NDArray[(Any,), np.int],
+    ar_center: NDArray[(Any, 2), np.float],
+    stage_pos: NDArray[(Any, 3), np.float],
+    id_to_xyz: NDArray[(Any, 3), np.float],
+) -> Tuple[
+    NDArray[(3, 4), np.float], NDArray[(2,), np.float], NDArray[(Any, 2), np.float]
+]:
+    """ARマーカーとステージ位置から3x4カメラパラメータ行列を得る
+
+    Args:
+        ar_id (ndarray): ARマーカーIDの配列
+        ar_center (ndarray): 画像上のARマーカーの中心座標(x, y)
+        stage_pos (ndarray): ステージ位置(pan, tilt, roll)
+        id_to_xyz (ndarray): ARマーカーIDから世界座標を得る配列
+
+    Returns:
+        tuple: 「3x4カメラパラメータ行列」と
+               「xとyについてのRMSE」と「各対応点に対する再投影誤差」のタプル
+    """
+    obj_and_img_points = []
+    for aid, center, pos in zip(ar_id, ar_center, stage_pos):
+        # ARマーカーの世界座標を計算
+        world_rot = rot_matrix_from_pan_tilt_roll(*pos)
+        world_xyz = id_to_xyz[aid]
+        world_xyz = world_rot @ world_xyz
+        # 対応点として記録
+        obj_and_img_points.append(np.append(world_xyz, center))
+
+    obj_and_img_points = np.array(obj_and_img_points)
+    cam_mat = calib_by_points(obj_and_img_points)
+    rmse, diff = calibed_rmse(cam_mat, obj_and_img_points)
+    return cam_mat, rmse, diff
+
+
+def optimize_id_to_xyz(
+    ar_id: NDArray[(Any,), np.int],
+    ar_center: NDArray[(Any, 2), np.float],
+    stage_pos: NDArray[(Any, 3), np.float]):
+    """対応点情報から最適なARマーカー世界座標を求める
+
+    Args:
+        ar_id (ndarray): ARマーカーIDの配列
+        ar_center (ndarray): 画像上のARマーカーの中心座標(x, y)
+        stage_pos (ndarray): ステージ位置(pan, tilt, roll)
+
+    Returns:
+        ndarray: ARマーカーIDから世界座標を得る配列
+    """
+    def golden_search(
+        xyz_index: int,
+        error: float,
+        low: float,
+        high: float,
+        id_to_xyz_base: np.ndarray,
+    ) -> Tuple[float, NDArray[(2,), np.float]]:
+        """最適なARマーカー世界座標オフセットを黄金分割探索により求める
+
+        Args:
+            xyz_index (int): x, y, zについて探索する場合は0, 1, 2を入れる
+            error (float): 最大誤差
+            low (float): 探索下限
+            high (float): 探索上限
+            id_to_xyz_base (np.ndarray): ARマーカーIDから世界座標を得る配列
+
+        Returns:
+            tuple: 「最適ARマーカー世界座標オフセット」と「xとyについてのRMSE」のタプル
+        """
+        PHI = (1.0 + 5 ** (1 / 2)) / 2
+
+        def offset_to_rmse(offset: float, index: int) -> NDArray[(2,), np.float]:
+            """`index`を`offset`したときのRMSEを求める
+
+            Args:
+                offset (float): ARマーカー世界座標オフセット
+                index (int): x, y, zについて探索する場合は0, 1, 2を入れる
+
+            Returns:
+                ndarray: xとyについてのRMSE
+            """
+            id_to_xyz_opt = np.copy(id_to_xyz_base)
+            id_to_xyz_opt[:, index] = id_to_xyz_opt[:, index] + offset
+            _, rmse, _ = raw_xyz_to_cam_mat(ar_id, ar_center, stage_pos, id_to_xyz_opt)
+            return rmse
+
+        x_low = low
+        x_high = high
+        x1 = (x_low * PHI + x_high) / (1.0 + PHI)
+        x2 = (x_low + x_high * PHI) / (1.0 + PHI)
+        rmse_1 = offset_to_rmse(x1, xyz_index)
+        rmse_2 = offset_to_rmse(x2, xyz_index)
+        while x_low + error < x_high:
+            if np.sum(rmse_1) < np.sum(rmse_2):
+                x_high = x2
+                x2 = x1
+                x1 = (x_low * PHI + x_high) / (1.0 + PHI)
+                rmse_2 = rmse_1
+                rmse_1 = offset_to_rmse(x1, xyz_index)
+            else:
+                x_low = x1
+                x1 = x2
+                x2 = (x_low + x_high * PHI) / (1.0 + PHI)
+                rmse_1 = rmse_2
+                rmse_2 = offset_to_rmse(x2, xyz_index)
+        return x1, rmse_1
+
+    id_to_xyz_optimized = np.copy(_AR_ID_TO_WORLD_XYZ_40X40)
+
+    for err, halfwidth in zip((1e-4, 1e-6, 1e-8), (0.04, 0.005, 0.001)):
+        best_z_offset, best_rmse = golden_search(
+            2, err, -halfwidth, halfwidth, id_to_xyz_optimized
+        )
+        print(f"best Z offset is {best_z_offset:+.6f}, RMSE:{np.sum(best_rmse):.6f}")
+        id_to_xyz_optimized[:, 2] = id_to_xyz_optimized[:, 2] + best_z_offset
+
+        best_x_offset, best_rmse = golden_search(
+            0, err, -halfwidth, halfwidth, id_to_xyz_optimized
+        )
+        print(f"best X offset is {best_x_offset:+.6f}, RMSE:{np.sum(best_rmse):.6f}")
+        id_to_xyz_optimized[:, 0] = id_to_xyz_optimized[:, 0] + best_x_offset
+
+        best_y_offset, best_rmse = golden_search(
+            1, err, -halfwidth, halfwidth, id_to_xyz_optimized
+        )
+        print(f"best Y offset is {best_y_offset:+.6f}, RMSE:{np.sum(best_rmse):.6f}")
+        id_to_xyz_optimized[:, 1] = id_to_xyz_optimized[:, 1] + best_y_offset
+
+    return id_to_xyz_optimized

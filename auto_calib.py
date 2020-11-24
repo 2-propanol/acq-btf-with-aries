@@ -1,3 +1,5 @@
+from time import sleep
+from typing import Any
 from pathlib import Path
 
 import cv2
@@ -6,19 +8,25 @@ import matplotlib.pyplot as plt
 import numpy as np
 from aries import Aries
 from mpl_toolkits.mplot3d import Axes3D
+from nptyping import NDArray
 from tqdm import tqdm
 
-from calib_utils import calib_by_points, calibed_rmse, rot_matrix_from_pan_tilt_roll
+from calib_utils import (
+    _AR_ID_TO_WORLD_XYZ_40X40,
+    optimize_id_to_xyz,
+    raw_xyz_to_cam_mat,
+)
 
-TRY_XYZS = 20
-FILENAME_TO_SAVE_CORRESPONDS = "camera_matrix.npy"
+TRY_XYZS = 50
+FILENAME_TO_SAVE_CORRESPONDS = "corresponds_20201124.npy"
+FILENAME_TO_SAVE_CAMERA_MATRIX = "camera_matrix_20201124.npy"
 
 CAM_GAIN = 5
 CAM_AVERAGE = 3
-CAM_EXPOSURE_US = 50000
+CAM_EXPOSURE_US = 25000
 
-PAN_ROTATE_RANGE = 120
-TILT_ROTATE_RANGE = 60
+PAN_ROTATE_RANGE = 160
+TILT_ROTATE_RANGE = 80
 ROLL_ROTATE_RANGE = 45
 USE_U_AXIS = False
 
@@ -26,55 +34,16 @@ USE_U_AXIS = False
 aruco = cv2.aruco
 ar_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
 
-_AR_ID_TO_WORLD_XYZ = np.array(
-    (
-        (-0.7, -0.7, 0.0),
-        (0.0, -0.7, 0.0),
-        (0.7, -0.7, 0.0),
-        (-0.7, 0.0, 0.0),
-        (0.0, 0.0, 0.0),
-        (0.7, 0.0, 0.0),
-        (-0.7, 0.7, 0.0),
-        (0.0, 0.7, 0.0),
-        (0.7, 0.7, 0.0),
-    )
-)
 
-_AR_ID_TO_WORLD_XYZ_40X40 = np.array(
-    (
-        (-0.85, -0.85, 0.0),
-        (-0.50, -0.85, 0.0),
-        (0.00, -0.85, 0.0),
-        (0.35, -0.85, 0.0),
-        (0.75, -0.85, 0.0),
-        (-0.85, -0.45, 0.0),
-        (-0.50, -0.35, 0.0),
-        (-0.05, -0.50, 0.0),
-        (0.30, -0.35, 0.0),
-        (0.85, -0.40, 0.0),
-        (-0.85, 0.10, 0.0),
-        (-0.45, 0.05, 0.0),
-        (-0.05, -0.05, 0.0),
-        (0.30, 0.00, 0.0),
-        (0.65, -0.05, 0.0),
-        (-0.75, 0.50, 0.0),
-        (-0.40, 0.40, 0.0),
-        (-0.05, 0.30, 0.0),
-        (0.40, 0.35, 0.0),
-        (0.80, 0.30, 0.0),
-        (-0.80, 0.85, 0.0),
-        (-0.40, 0.75, 0.0),
-        (-0.05, 0.85, 0.0),
-        (0.35, 0.70, 0.0),
-        (0.80, 0.80, 0.0),
-    )
-)
+def test_ar_reader() -> bool:
+    """ARマーカーが認識できているか確認し、撮影を始めるか決める
 
-
-def test_ar_reader():
+    Returns:
+        bool: qキーでFalse、sキーでTrueが返る
+    """
     cap = EasyPySpin.VideoCaptureEX(0)
     cap.set(cv2.CAP_PROP_EXPOSURE, CAM_EXPOSURE_US)
-    cap.set(cv2.CAP_PROP_GAIN, CAM_GAIN)
+    # cap.set(cv2.CAP_PROP_GAIN, CAM_GAIN)
     # cap.set(cv2.CAP_PROP_GAMMA, 1.0)
     cap.average_num = CAM_AVERAGE
 
@@ -96,15 +65,25 @@ def test_ar_reader():
                     frame, tuple(ar_center.astype(np.int)), 7, (0, 0, 255), -1
                 )
 
-        cv2.imshow("Press [q] to start calibration.", frame)
-        if cv2.waitKey(100) == ord("q"):
-            break
+        cv2.imshow("[q] to quit(cancel), [s] to start calibration.", frame)
+        key = cv2.waitKey(50)
+        if key == ord("q"):
+            cap.release()
+            cv2.destroyAllWindows()
+            return False
+        elif key == ord("s"):
+            cap.release()
+            cv2.destroyAllWindows()
+            return True
 
-    cap.release()
-    cv2.destroyAllWindows()
 
+def get_corresponds() -> NDArray[(Any, 5), np.float]:
+    """4軸ステージを動かして、ARマーカーの画像座標とステージ位置の対応点を得る
 
-def auto_calib():
+    Returns:
+        ndarray: n*5のndarray。各行は、ARマーカーのID(0:0)、
+                 画像上のARマーカーの中心座標(1:3)、ステージ位置(3:6)が入る。
+    """
     if not (0 <= PAN_ROTATE_RANGE <= 180):
         print("invalid `PAN_ROTATE_RANGE`")
     if not (0 <= TILT_ROTATE_RANGE <= 90):
@@ -128,7 +107,7 @@ def auto_calib():
     # カメラ初期設定
     cap = EasyPySpin.VideoCaptureEX(0)
     cap.set(cv2.CAP_PROP_EXPOSURE, CAM_EXPOSURE_US)
-    cap.set(cv2.CAP_PROP_GAIN, CAM_GAIN)
+    # cap.set(cv2.CAP_PROP_GAIN, CAM_GAIN)
     # cap.set(cv2.CAP_PROP_GAMMA, 1.0)
     cap.average_num = CAM_AVERAGE
 
@@ -175,6 +154,7 @@ def auto_calib():
 
         stage.position = (*xyz, u)
         stage.sleep_until_stop()
+        sleep(1)
 
         _, frame = cap.read()
         frame = cv2.cvtColor(frame, cv2.COLOR_BayerBG2BGR)
@@ -195,56 +175,45 @@ def auto_calib():
             if ar_id[0] >= len(_AR_ID_TO_WORLD_XYZ_40X40):
                 continue
 
-            # ARマーカーの世界座標を計算
-            world_rot = rot_matrix_from_pan_tilt_roll(*stage.position[0:3])
-            world_xyz = _AR_ID_TO_WORLD_XYZ_40X40[ar_id[0]]
-            world_xyz = world_rot @ world_xyz
-
             # カメラに写った中心座標を計算
             ar_center = ar_corner[0].mean(axis=0)
 
             # 対応点として記録
-            corresponds.append(np.append(world_xyz, ar_center))
+            corresponds.append(np.concatenate([ar_id, ar_center, xyz]))
 
     cap.release()
     del stage
 
-    # キャリブレーションを行い、評価を表示し、カメラ行列をnpyに保存
     corresponds = np.array(corresponds)
     print("Valid points:", len(corresponds))
-
-    cam_mat = calib_by_points(corresponds)
-    print("camera matrix:\n", cam_mat)
-
-    rmse, diff = calibed_rmse(cam_mat, corresponds)
-    print("RMSE:", rmse)
-
-    fig = plt.figure()
-    ax = fig.add_subplot(1, 1, 1)
-    ax.scatter(diff[:, 0], diff[:, 1])
-    fig.show()
-
-    fig = plt.figure()
-    ax = Axes3D(fig)
-    ax.set_xlabel("X")
-    ax.set_ylabel("Y")
-    ax.set_zlabel("Z")
-    ax.plot(
-        corresponds[:, 0],
-        corresponds[:, 1],
-        corresponds[:, 2],
-        marker="o",
-        linestyle="None",
-    )
-    plt.show()
-
-    np.save(FILENAME_TO_SAVE_CORRESPONDS, cam_mat)
-    print(f"saved camera matrix to [{FILENAME_TO_SAVE_CORRESPONDS}]")
+    return corresponds
 
 
 if __name__ == "__main__":
-    test_ar_reader()
-    if Path(FILENAME_TO_SAVE_CORRESPONDS).exists():
-        print(f"file: [{FILENAME_TO_SAVE_CORRESPONDS}] is already exists.")
-    else:
-        auto_calib()
+    if test_ar_reader():
+        if Path(FILENAME_TO_SAVE_CORRESPONDS).exists():
+            print(f"file: [{FILENAME_TO_SAVE_CORRESPONDS}] is already exists.")
+        else:
+            corresponds = get_corresponds()
+            np.save(FILENAME_TO_SAVE_CORRESPONDS, corresponds)
+            print(f"saved raw corresponding points to [{FILENAME_TO_SAVE_CORRESPONDS}]")
+
+            ar_id = corresponds[:, 0].astype(np.int)
+            ar_center = corresponds[:, 1:3]
+            stage_pos = corresponds[:, 3:6]
+            id_to_xyz = optimize_id_to_xyz(ar_id, ar_center, stage_pos)
+
+            cam_mat, rmse, diff = raw_xyz_to_cam_mat(
+                ar_id, ar_center, stage_pos, id_to_xyz
+            )
+
+            print("camera matrix:\n", cam_mat)
+            print("RMSE:", rmse)
+
+            fig = plt.figure()
+            ax = fig.add_subplot(1, 1, 1)
+            ax.scatter(diff[:, 0], diff[:, 1])
+            plt.show()
+
+            np.save(FILENAME_TO_SAVE_CAMERA_MATRIX, cam_mat)
+            print(f"saved camera matrix to [{FILENAME_TO_SAVE_CAMERA_MATRIX}]")
