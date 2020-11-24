@@ -1,5 +1,4 @@
 """Aries4軸ステージでBTFを撮影する"""
-from itertools import product
 from pathlib import Path
 from typing import Any, Tuple
 
@@ -12,6 +11,7 @@ from aries import Aries
 from nptyping import Float16, NDArray
 from tqdm import trange
 
+from acq_presets import preset_4d_169shots
 from calib_utils import rot_matrix_from_pan_tilt_roll, wrap_homogeneous_dot
 from transcoord import tlpltvpv_to_xyzu
 
@@ -30,124 +30,6 @@ ACQ_AVERAGE = 3
 IMG_SIZE = (512, 512)
 
 _WORLD_LT_RT_LB_RB = ((-1, -1, 0), (1, -1, 0), (-1, 1, 0), (1, 1, 0))
-
-
-def acq_1d(start: float, stop: float, num: int) -> NDArray[(Any, 4), Float16]:
-    """光源位置の1軸変化のみ取得。引数は`np.linspace`準拠。
-
-    Returns:
-        撮影したいtlpltvpvの組が入った`ndarray`: shape=(num, 4), dtype=np.float16
-    """
-    to_acq = np.zeros((num, 4), dtype=np.float16)
-    to_acq_tl = np.linspace(start, stop, num=num)
-    to_acq[:, 0] = to_acq_tl
-    return to_acq
-
-
-def acq_2d() -> NDArray[(Any, 4), Float16]:
-    """光源位置の2軸変化のみ取得。
-
-    Returns:
-        撮影したいtlpltvpvの組が入った`ndarray`: shape=(num, 4), dtype=np.float16
-    """
-    to_acq_tl = np.concatenate(
-        (
-            np.full(24, 15),
-            np.full(24, 30),
-            np.full(24, 45),
-            np.full(24, 60),
-            np.full(24, 75),
-        )
-    )
-    to_acq_pl = np.concatenate(
-        (
-            # np.arange(10, 89),
-            # np.arange(10, 89)
-            np.linspace(0, 345, int(360 / 15)),
-            np.linspace(0, 345, int(360 / 15)),
-            np.linspace(0, 345, int(360 / 15)),
-            np.linspace(0, 345, int(360 / 15)),
-            np.linspace(0, 345, int(360 / 15))
-            # np.linspace(10.0, 89.5, int(80 / 0.5)), np.linspace(10.0, 89.5, int(80 / 0.5))
-        )
-    )
-    num = len(to_acq_tl)
-    to_acq = np.zeros((num, 4), dtype=np.float16)
-    to_acq[:, 0] = to_acq_tl
-    to_acq[:, 1] = to_acq_pl
-    return to_acq
-
-
-def acq_2d() -> NDArray[(Any, 4), Float16]:
-    """光源位置の2軸変化のみ取得。
-
-    Returns:
-        撮影したいtlpltvpvの組が入った`ndarray`: shape=(num, 4), dtype=np.float16
-    """
-    to_acq_tl = np.concatenate(
-        (
-            np.full(24, 15),
-            np.full(24, 30),
-            np.full(24, 45),
-            np.full(24, 60),
-            np.full(24, 75),
-        )
-    )
-    to_acq_pl = np.concatenate(
-        (
-            # np.arange(10, 89),
-            # np.arange(10, 89)
-            np.linspace(0, 345, int(360 / 15)),
-            np.linspace(0, 345, int(360 / 15)),
-            np.linspace(0, 345, int(360 / 15)),
-            np.linspace(0, 345, int(360 / 15)),
-            np.linspace(0, 345, int(360 / 15))
-            # np.linspace(10.0, 89.5, int(80 / 0.5)), np.linspace(10.0, 89.5, int(80 / 0.5))
-        )
-    )
-    num = len(to_acq_tl)
-    to_acq = np.zeros((num, 4), dtype=np.float16)
-    to_acq[:, 0] = to_acq_tl
-    to_acq[:, 1] = to_acq_pl
-    return to_acq
-
-
-def acq_4d() -> NDArray[(Any, 4), Float16]:
-    """光源・カメラ位置の4軸変化を取得。
-
-    Returns:
-        撮影したいtlpltvpvの組が入った`ndarray`: shape=(num, 4), dtype=np.float16
-    """
-    # 169枚
-    # THETA_PHI_PAIR_TO_ACQ = (
-    #     (0, 0),
-    #     (30, 0),
-    #     (30, 90),
-    #     (30, 180),
-    #     (30, 270),
-    #     (60, 0),
-    #     (60, 45),
-    #     (60, 90),
-    #     (60, 135),
-    #     (60, 180),
-    #     (60, 225),
-    #     (60, 270),
-    #     (60, 315),
-    # )
-
-    # 25枚
-    THETA_PHI_PAIR_TO_ACQ = (
-        (10, 0),
-        (30, 0),
-        (30, 90),
-        (30, 180),
-        (30, 270),
-    )
-
-    to_acq = product(THETA_PHI_PAIR_TO_ACQ, THETA_PHI_PAIR_TO_ACQ)
-    to_acq = np.array([light + view for light, view in to_acq], dtype=np.float16)
-
-    return to_acq
 
 
 def schedule_acq(
@@ -193,8 +75,8 @@ def main() -> int:
     stage = Aries()
 
     # 撮影する角度を決める
-    # to_acq = acq_1d(-89, 89, 89 + 89 + 1)
-    to_acq = acq_4d()
+    print("Optimizing acquiring order.")
+    to_acq = preset_4d_169shots()
     scheduled_tlpltvpv, scheduled_xyzu = schedule_acq(to_acq)
 
     # stageを動かす
