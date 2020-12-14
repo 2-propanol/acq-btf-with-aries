@@ -1,4 +1,5 @@
 """Aries4軸ステージでBTFを撮影する"""
+from itertools import product
 from pathlib import Path
 from typing import Any, Tuple
 
@@ -15,21 +16,23 @@ from acq_presets import preset_4d_169shots
 from calib_utils import rot_matrix_from_pan_tilt_roll, wrap_homogeneous_dot
 from transcoord import tlpltvpv_to_xyzu
 
-NPZ_FILENAME_TO_SAVE = "ARMarker-4D.btf.npz"
-NPY_FILENAME_FOR_CAMERA_MATRIX = "camera_matrix.npy"
+NPZ_FILENAME_TO_SAVE = "carbon_4D169.btf.npz"
+NPY_FILENAME_FOR_CAMERA_MATRIX = "camera_matrix_20201211.npy"
 
 # 露光時間（単位:us）
-ACQ_T_MIN_US = 2500
-ACQ_T_MAX_US = 25000
-ACQ_T_REF_US = 10000
+ACQ_T_MIN_US = 5000
+ACQ_T_MAX_US = 100000
+ACQ_T_REF_US = 15000
 
 ACQ_GAIN = 0
-ACQ_AVERAGE = 3
+ACQ_AVERAGE = 5
 
 # クロップ後画像サイズ
 IMG_SIZE = (512, 512)
 
-_WORLD_LT_RT_LB_RB = ((-1, -1, 0), (1, -1, 0), (-1, 1, 0), (1, 1, 0))
+WORLD_LT_RT_LB_RB = np.array(((-1, -1, 0), (1, -1, 0), (-1, 1, 0), (1, 1, 0)))
+WORLD_LT_RT_LB_RB = WORLD_LT_RT_LB_RB + np.array((0, 0, 0.02))
+WORLD_LT_RT_LB_RB = WORLD_LT_RT_LB_RB * 0.9
 
 
 def schedule_acq(
@@ -73,6 +76,7 @@ def main() -> int:
 
     print("Waiting Aries.")
     stage = Aries()
+    stage.speed = (5, 4, 9, 2)
 
     # 撮影する角度を決める
     print("Optimizing acquiring order.")
@@ -89,14 +93,15 @@ def main() -> int:
     if not cap.isOpened():
         print("Acq-BTF: Camera device error.")
         return 1
-    cap.set(cv2.CAP_PROP_GAIN, 0)
+    cap.set(cv2.CAP_PROP_GAIN, ACQ_GAIN)
     cap.average_num = ACQ_AVERAGE
+    cap.set(cv2.CAP_PROP_EXPOSURE, ACQ_T_REF_US)
 
     # カメラパラメータ行列読み込み
     obj_to_img_mat = np.load(NPY_FILENAME_FOR_CAMERA_MATRIX)
     dst_imgpoints = np.array(
         ((0, 0), (IMG_SIZE[0], 0), (0, IMG_SIZE[1]), (IMG_SIZE[0], IMG_SIZE[1])),
-        dtype=np.float32
+        dtype=np.float32,
     )
 
     # 画像保存用のメモリ確保
@@ -112,7 +117,9 @@ def main() -> int:
 
         # stageが動き切るまで待って撮影
         stage.sleep_until_stop()
-        is_valid, frame = cap.readHDR(t_min=ACQ_T_MIN_US, t_max=ACQ_T_MAX_US, t_ref=ACQ_T_REF_US)
+        is_valid, frame = cap.readHDR(
+            t_min=ACQ_T_MIN_US, t_max=ACQ_T_MAX_US, t_ref=ACQ_T_REF_US
+        )
 
         # stageを動かす
         if i + 1 < len(scheduled_xyzu):
@@ -127,12 +134,14 @@ def main() -> int:
 
         # 素材の四隅がカメラのどこに写るか計算する
         world_rot = rot_matrix_from_pan_tilt_roll(xyzu[0], xyzu[1], xyzu[2])
-        material_edges = np.array(_WORLD_LT_RT_LB_RB, dtype=np.float) * 0.9
+        material_edges = np.array(WORLD_LT_RT_LB_RB, dtype=np.float)
         material_edges = world_rot @ material_edges.T
         src_imgpoints = wrap_homogeneous_dot(obj_to_img_mat, material_edges.T)
 
         # 射影変換を行い、素材の正面画像を得る
-        img_to_img_mat = cv2.getPerspectiveTransform(src_imgpoints.astype(np.float32), dst_imgpoints)
+        img_to_img_mat = cv2.getPerspectiveTransform(
+            src_imgpoints.astype(np.float32), dst_imgpoints
+        )
         frame = cv2.warpPerspective(
             frame, img_to_img_mat, IMG_SIZE, flags=cv2.INTER_CUBIC
         )
