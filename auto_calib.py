@@ -17,16 +17,16 @@ from calib_utils import (
     raw_xyz_to_cam_mat,
 )
 
-TRY_XYZS = 50
-FILENAME_TO_SAVE_CORRESPONDS = "corresponds_20201124.npy"
-FILENAME_TO_SAVE_CAMERA_MATRIX = "camera_matrix_20201124.npy"
+TRY_XYZS = 30
+FILENAME_TO_SAVE_CORRESPONDS = "corresponds_20201211.npy"
+FILENAME_TO_SAVE_CAMERA_MATRIX = "camera_matrix_20201211.npy"
 
 CAM_GAIN = 5
-CAM_AVERAGE = 3
+CAM_AVERAGE = 1
 CAM_EXPOSURE_US = 25000
 
-PAN_ROTATE_RANGE = 160
-TILT_ROTATE_RANGE = 80
+PAN_ROTATE_RANGE = 140
+TILT_ROTATE_RANGE = 70
 ROLL_ROTATE_RANGE = 45
 USE_U_AXIS = False
 
@@ -42,7 +42,7 @@ def test_ar_reader() -> bool:
         bool: qキーでFalse、sキーでTrueが返る
     """
     cap = EasyPySpin.VideoCaptureEX(0)
-    cap.set(cv2.CAP_PROP_EXPOSURE, CAM_EXPOSURE_US)
+    # cap.set(cv2.CAP_PROP_EXPOSURE, CAM_EXPOSURE_US)
     # cap.set(cv2.CAP_PROP_GAIN, CAM_GAIN)
     # cap.set(cv2.CAP_PROP_GAMMA, 1.0)
     cap.average_num = CAM_AVERAGE
@@ -106,7 +106,7 @@ def get_corresponds() -> NDArray[(Any, 5), np.float]:
 
     # カメラ初期設定
     cap = EasyPySpin.VideoCaptureEX(0)
-    cap.set(cv2.CAP_PROP_EXPOSURE, CAM_EXPOSURE_US)
+    # cap.set(cv2.CAP_PROP_EXPOSURE, CAM_EXPOSURE_US)
     # cap.set(cv2.CAP_PROP_GAIN, CAM_GAIN)
     # cap.set(cv2.CAP_PROP_GAMMA, 1.0)
     cap.average_num = CAM_AVERAGE
@@ -191,12 +191,13 @@ def get_corresponds() -> NDArray[(Any, 5), np.float]:
 
 if __name__ == "__main__":
     if test_ar_reader():
-        if Path(FILENAME_TO_SAVE_CORRESPONDS).exists():
-            print(f"file: [{FILENAME_TO_SAVE_CORRESPONDS}] is already exists.")
+        if Path(FILENAME_TO_SAVE_CAMERA_MATRIX).exists():
+            print(f"file: [{FILENAME_TO_SAVE_CAMERA_MATRIX}] is already exists.")
         else:
             corresponds = get_corresponds()
             np.save(FILENAME_TO_SAVE_CORRESPONDS, corresponds)
             print(f"saved raw corresponding points to [{FILENAME_TO_SAVE_CORRESPONDS}]")
+            # corresponds = np.load("corres.npy")
 
             ar_id = corresponds[:, 0].astype(np.int)
             ar_center = corresponds[:, 1:3]
