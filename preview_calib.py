@@ -10,7 +10,13 @@ import calib_utils
 CAM_ID: int = 0
 VIEW_SCALE: float = 0.5
 
-WORLD_LT_RT_LB_RB = ((-1, -1, 0), (1, -1, 0), (-1, 1, 0), (1, 1, 0))
+NPY_FILENAME_FOR_CAMERA_MATRIX = "camera_matrix_20201214.npy"
+
+WORLD_LT_RT_LB_RB = np.array(((-1, -1, 0), (1, -1, 0), (-1, 1, 0), (1, 1, 0)))
+WORLD_LT_RT_LB_RB = WORLD_LT_RT_LB_RB + np.array((-0.005, 0.004, 0.02))
+# WORLD_LT_RT_LB_RB = WORLD_LT_RT_LB_RB + np.array((-0.005, 0.004, 0.0))
+WORLD_LT_RT_LB_RB = WORLD_LT_RT_LB_RB * 1
+
 IMG_SIZE = (512, 512)
 
 
@@ -32,9 +38,7 @@ def main():
     bottom_border = cam_height - top_border
 
     stage = Aries()
-    # pts = calib_utils.obj_and_img_points_from_csv("corresponds.csv")
-    # cam_mat = calib_utils.calib_by_points(pts)
-    cam_mat = np.load("camera_matrix.npy")
+    cam_mat = np.load(NPY_FILENAME_FOR_CAMERA_MATRIX)
 
     dst_imgpoints = np.array(
         ((0, 0), (IMG_SIZE[0], 0), (0, IMG_SIZE[1]), (IMG_SIZE[0], IMG_SIZE[1])),
