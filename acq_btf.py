@@ -1,5 +1,4 @@
 """Aries4軸ステージでBTFを撮影する"""
-from itertools import product
 from pathlib import Path
 from typing import Any, Tuple
 
@@ -84,8 +83,6 @@ def main() -> int:
     scheduled_tlpltvpv, scheduled_xyzu = schedule_acq(to_acq)
 
     # stageを動かす
-    stage.safety_stop = False
-    stage.safety_u_axis = False
     stage.position = scheduled_xyzu[0]
 
     # カメラの初期設定
