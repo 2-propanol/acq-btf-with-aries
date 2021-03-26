@@ -29,7 +29,7 @@ def acq_1d_view(start: float, stop: float, num: int) -> NDArray[(Any, 4), Float1
     return to_acq
 
 
-def acq_4d(view_theta_phi, light_theta_phi) -> NDArray[(Any, 4), Float16]:
+def acq_4d(light_theta_phi, view_theta_phi) -> NDArray[(Any, 4), Float16]:
     """光源・視点位置の4軸変化を取得。各光源位置について各視点位置で撮影する。
 
     Args:
@@ -39,7 +39,7 @@ def acq_4d(view_theta_phi, light_theta_phi) -> NDArray[(Any, 4), Float16]:
     Returns:
         ndarray, shape=(view*light, 4), dtype=np.float16: 撮影したいtlpltvpvの組
     """
-    to_acq = product(view_theta_phi, light_theta_phi)
+    to_acq = product(light_theta_phi, view_theta_phi)
     to_acq = np.array([light + view for light, view in to_acq], dtype=np.float16)
     return to_acq
 
@@ -97,13 +97,13 @@ def preset_2d_light_24shots() -> NDArray[(Any, 4), Float16]:
     Returns:
         ndarray, shape=(24, 4), dtype=np.float16: 撮影したいtlpltvpvの組
     """
-    to_acq_tl = np.concatenate((np.full(24, 45),))
-    to_acq_pl = np.concatenate((np.linspace(0, 345, 360 // 15),))
-    num = len(to_acq_tl)
-    to_acq = np.zeros((num, 4), dtype=np.float16)
-    to_acq[:, 0] = to_acq_tl
-    to_acq[:, 1] = to_acq_pl
-    return to_acq
+    theta_and_phidiff_list = ((45, 15),)
+    pairlist = []
+    for theta, phidiff in theta_and_phidiff_list:
+        for i in range(int(360 / phidiff)):
+            pairlist.append((theta, phidiff * i))
+
+    return acq_4d(pairlist, ((0, 0),))
 
 
 def preset_2d_light_120shots() -> NDArray[(Any, 4), Float16]:
@@ -112,29 +112,13 @@ def preset_2d_light_120shots() -> NDArray[(Any, 4), Float16]:
     Returns:
         ndarray, shape=(120, 4), dtype=np.float16: 撮影したいtlpltvpvの組
     """
-    to_acq_tl = np.concatenate(
-        (
-            np.full(24, 15),
-            np.full(24, 30),
-            np.full(24, 45),
-            np.full(24, 60),
-            np.full(24, 75),
-        )
-    )
-    to_acq_pl = np.concatenate(
-        (
-            np.linspace(0, 345, 360 // 15),
-            np.linspace(0, 345, 360 // 15),
-            np.linspace(0, 345, 360 // 15),
-            np.linspace(0, 345, 360 // 15),
-            np.linspace(0, 345, 360 // 15),
-        )
-    )
-    num = len(to_acq_tl)
-    to_acq = np.zeros((num, 4), dtype=np.float16)
-    to_acq[:, 0] = to_acq_tl
-    to_acq[:, 1] = to_acq_pl
-    return to_acq
+    theta_and_phidiff_list = ((15, 15), (30, 15), (45, 15), (60, 15), (75, 15))
+    pairlist = []
+    for theta, phidiff in theta_and_phidiff_list:
+        for i in range(int(360 / phidiff)):
+            pairlist.append((theta, phidiff * i))
+
+    return acq_4d(pairlist, ((0, 0),))
 
 
 def preset_4d_25shots() -> NDArray[(Any, 4), Float16]:
@@ -143,7 +127,7 @@ def preset_4d_25shots() -> NDArray[(Any, 4), Float16]:
     Returns:
         ndarray, shape=(25, 4), dtype=np.float16: 撮影したいtlpltvpvの組
     """
-    THETA_PHI_PAIR_TO_ACQ = (
+    pairlist = (
         (10, 0),
         (30, 0),
         (30, 90),
@@ -151,7 +135,7 @@ def preset_4d_25shots() -> NDArray[(Any, 4), Float16]:
         (30, 270),
     )
 
-    return acq_4d(THETA_PHI_PAIR_TO_ACQ, THETA_PHI_PAIR_TO_ACQ)
+    return acq_4d(pairlist, pairlist)
 
 
 def preset_4d_169shots() -> NDArray[(Any, 4), Float16]:
@@ -160,23 +144,13 @@ def preset_4d_169shots() -> NDArray[(Any, 4), Float16]:
     Returns:
         ndarray, shape=(169, 4), dtype=np.float16: 撮影したいtlpltvpvの組
     """
-    THETA_PHI_PAIR_TO_ACQ = (
-        (0, 0),
-        (30, 0),
-        (30, 90),
-        (30, 180),
-        (30, 270),
-        (60, 0),
-        (60, 45),
-        (60, 90),
-        (60, 135),
-        (60, 180),
-        (60, 225),
-        (60, 270),
-        (60, 315),
-    )
+    theta_and_phidiff_list = ((30, 90), (60, 45))
+    pairlist = [(0, 0)]
+    for theta, phidiff in theta_and_phidiff_list:
+        for i in range(int(360 / phidiff)):
+            pairlist.append((theta, phidiff * i))
 
-    return acq_4d(THETA_PHI_PAIR_TO_ACQ, THETA_PHI_PAIR_TO_ACQ)
+    return acq_4d(pairlist, pairlist)
 
 
 def preset_4d_625shots() -> NDArray[(Any, 4), Float16]:
@@ -185,32 +159,25 @@ def preset_4d_625shots() -> NDArray[(Any, 4), Float16]:
     Returns:
         ndarray, shape=(625, 4), dtype=np.float16: 撮影したいtlpltvpvの組
     """
-    THETA_PHI_PAIR_TO_ACQ = (
-        (0, 0),
-        (30, 0),
-        (30, 90),
-        (30, 180),
-        (30, 270),
-        (45, 0),
-        (45, 45),
-        (45, 90),
-        (45, 135),
-        (45, 180),
-        (45, 225),
-        (45, 270),
-        (45, 315),
-        (60, 0),
-        (60, 30),
-        (60, 60),
-        (60, 90),
-        (60, 120),
-        (60, 150),
-        (60, 180),
-        (60, 210),
-        (60, 240),
-        (60, 270),
-        (60, 300),
-        (60, 330),
-    )
+    theta_and_phidiff_list = ((30, 90), (45, 45), (60, 30))
+    pairlist = [(0, 0)]
+    for theta, phidiff in theta_and_phidiff_list:
+        for i in range(int(360 / phidiff)):
+            pairlist.append((theta, phidiff * i))
 
-    return acq_4d(THETA_PHI_PAIR_TO_ACQ, THETA_PHI_PAIR_TO_ACQ)
+    return acq_4d(pairlist, pairlist)
+
+
+def preset_4d_6561shots() -> NDArray[(Any, 4), Float16]:
+    """光源・視点位置の4軸変化を取得。6561枚(81x81)プリセット。
+
+    Returns:
+        ndarray, shape=(6561, 4), dtype=np.float16: 撮影したいtlpltvpvの組
+    """
+    theta_and_phidiff_list = ((15, 60), (30, 30), (45, 20), (60, 18), (75, 15))
+    pairlist = [(0, 0)]
+    for theta, phidiff in theta_and_phidiff_list:
+        for i in range(int(360 / phidiff)):
+            pairlist.append((theta, phidiff * i))
+
+    return acq_4d(pairlist, pairlist)
