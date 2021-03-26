@@ -66,12 +66,11 @@ def schedule_acq(
 
 
 def main() -> int:
-    if Path(NPZ_FILENAME_TO_SAVE).exists():
-        print(f"file: [{NPZ_FILENAME_TO_SAVE}] already exists.")
-        return 2
     if not Path(NPY_FILENAME_FOR_CAMERA_MATRIX).exists():
         print(f"file: [{NPY_FILENAME_FOR_CAMERA_MATRIX}] does not exist.")
         return 4
+
+    Path(DIRECTORY_NAME_TO_SAVE).mkdir(exist_ok=True)
 
     print("Waiting Aries.")
     stage = Aries()
@@ -101,10 +100,15 @@ def main() -> int:
         dtype=np.float32,
     )
 
-    # 画像保存用のメモリ確保
-    frames = np.empty((len(scheduled_xyzu), *IMG_SIZE, 3), dtype=np.float32)
     tqdm_xyzu = trange(len(scheduled_xyzu))
     for i in tqdm_xyzu:
+        # ファイル存在確認
+        tl, pl, tv, pv = scheduled_tlpltvpv[i]
+        filename = f"{DIRECTORY_NAME_TO_SAVE}/tl{tl:03.0f}_pl{pl:03.0f}_tv{tv:03.0f}_pv{pv:03.0f}.exr"
+        # filename = f"{DIRECTORY_NAME_TO_SAVE}/tl{tl:04.1f}_pl{pl:05.1f}_tv{tv:04.1f}_pv{pv:05.1f}.exr"
+        if Path(filename).exists():
+            continue
+
         # tqdm更新
         xyzu = scheduled_xyzu[i]
         tqdm_xyzu.set_description(
@@ -114,6 +118,12 @@ def main() -> int:
 
         # stageが動き切るまで待って撮影
         stage.sleep_until_stop()
+        while not np.allclose(np.array(stage.position), scheduled_xyzu[i], 1e-2, 1e-5):
+            print(f"desync: except:{scheduled_xyzu[i]}, actual:{stage.position}")
+            stage.raw_command("ORG3/9/0")  # Z軸の零点調整
+            stage.position = scheduled_xyzu[i]
+            stage.sleep_until_stop()
+
         is_valid, frame = cap.readHDR(
             t_min=ACQ_T_MIN_US, t_max=ACQ_T_MAX_US, t_ref=ACQ_T_REF_US
         )
@@ -124,7 +134,7 @@ def main() -> int:
 
         if not is_valid:
             print("capture failed: ", scheduled_tlpltvpv[i])
-            frames[i] = np.zeros((*IMG_SIZE, 3))
+            frame = np.zeros((*IMG_SIZE, 3))
 
         # デモザイキング
         frame = cd.demosaicing_CFA_Bayer_bilinear(frame, pattern="BGGR")
@@ -144,18 +154,10 @@ def main() -> int:
         )
 
         # 画像を保存
-        frames[i] = frame.astype(np.float32)
+        cv2.imwrite(filename, frame.astype(np.float32))
 
     cap.release()
     del stage
-
-    print("compressing npz")
-    # TODO: 露光時間などのconditionsをnpzに記録する
-    np.savez_compressed(
-        NPZ_FILENAME_TO_SAVE,
-        images=frames,
-        angles=scheduled_tlpltvpv,
-    )
     return 0
 
 
