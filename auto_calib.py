@@ -17,12 +17,16 @@ from calib_utils import (
     raw_xyz_to_cam_mat,
 )
 
-TRY_XYZS = 30
-FILENAME_TO_SAVE_CORRESPONDS = "corresponds_20201211.npy"
-FILENAME_TO_SAVE_CAMERA_MATRIX = "camera_matrix_20201211.npy"
+TRY_XYZS = 50
+FILENAME_TO_SAVE_CORRESPONDS = "corresponds_20210326-7.npy"
+FILENAME_TO_SAVE_CAMERA_MATRIX = "camera_matrix_20210326-7.npy"
+
+# `None`でカメラから、`str`でファイルから対応点を取得
+FILENAME_TO_LOAD_CORRESPONDS = None
+# FILENAME_TO_LOAD_CORRESPONDS = "corresponds_20210326-7.npy"
 
 CAM_GAIN = 5
-CAM_AVERAGE = 1
+CAM_AVERAGE = 3
 CAM_EXPOSURE_US = 25000
 
 PAN_ROTATE_RANGE = 140
@@ -65,6 +69,7 @@ def test_ar_reader() -> bool:
                     frame, tuple(ar_center.astype(np.int)), 7, (0, 0, 255), -1
                 )
 
+        frame = cv2.resize(frame, None, fx=0.5, fy=0.5)
         cv2.imshow("[q] to quit(cancel), [s] to start calibration.", frame)
         key = cv2.waitKey(50)
         if key == ord("q"):
@@ -190,31 +195,39 @@ def get_corresponds() -> NDArray[(Any, 5), np.float]:
 
 
 if __name__ == "__main__":
-    if test_ar_reader():
-        if Path(FILENAME_TO_SAVE_CAMERA_MATRIX).exists():
-            print(f"file: [{FILENAME_TO_SAVE_CAMERA_MATRIX}] is already exists.")
-        else:
-            corresponds = get_corresponds()
-            np.save(FILENAME_TO_SAVE_CORRESPONDS, corresponds)
-            print(f"saved raw corresponding points to [{FILENAME_TO_SAVE_CORRESPONDS}]")
-            # corresponds = np.load("corres.npy")
+    # カメラ行列ファイルがあれば何もしない。
+    if Path(FILENAME_TO_SAVE_CAMERA_MATRIX).exists():
+        print(f"file: [{FILENAME_TO_SAVE_CAMERA_MATRIX}] is already exists.")
+        exit()
 
-            ar_id = corresponds[:, 0].astype(np.int)
-            ar_center = corresponds[:, 1:3]
-            stage_pos = corresponds[:, 3:6]
-            id_to_xyz = optimize_id_to_xyz(ar_id, ar_center, stage_pos)
+    # 対応点ファイルがあればそれを使う。なければカメラで撮影して取得する。
+    if FILENAME_TO_LOAD_CORRESPONDS:
+        corresponds = np.load(FILENAME_TO_LOAD_CORRESPONDS)
+        print(f"loaded raw corresponding points from [{FILENAME_TO_LOAD_CORRESPONDS}]")
+    else:
+        if not test_ar_reader():
+            exit()
+        corresponds = get_corresponds()
+        np.save(FILENAME_TO_SAVE_CORRESPONDS, corresponds)
+        print(f"saved raw corresponding points to [{FILENAME_TO_SAVE_CORRESPONDS}]")
 
-            cam_mat, rmse, diff = raw_xyz_to_cam_mat(
-                ar_id, ar_center, stage_pos, id_to_xyz
-            )
+    # 対応点からカメラ行列を計算する。
+    ar_id = corresponds[:, 0].astype(np.int)
+    ar_center = corresponds[:, 1:3]
+    stage_pos = corresponds[:, 3:6]
+    id_to_xyz = optimize_id_to_xyz(ar_id, ar_center, stage_pos)
 
-            print("camera matrix:\n", cam_mat)
-            print("RMSE:", rmse)
+    cam_mat, rmse, diff = raw_xyz_to_cam_mat(
+        ar_id, ar_center, stage_pos, id_to_xyz
+    )
 
-            fig = plt.figure()
-            ax = fig.add_subplot(1, 1, 1)
-            ax.scatter(diff[:, 0], diff[:, 1])
-            plt.show()
+    print("camera matrix:\n", cam_mat)
+    print("RMSE:", rmse)
 
-            np.save(FILENAME_TO_SAVE_CAMERA_MATRIX, cam_mat)
-            print(f"saved camera matrix to [{FILENAME_TO_SAVE_CAMERA_MATRIX}]")
+    np.save(FILENAME_TO_SAVE_CAMERA_MATRIX, cam_mat)
+    print(f"saved camera matrix to [{FILENAME_TO_SAVE_CAMERA_MATRIX}]")
+
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+    ax.scatter(diff[:, 0], diff[:, 1])
+    plt.show()
