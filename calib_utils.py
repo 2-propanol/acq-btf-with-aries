@@ -282,7 +282,8 @@ def raw_xyz_to_cam_mat(
 def optimize_id_to_xyz(
     ar_id: NDArray[(Any,), np.int],
     ar_center: NDArray[(Any, 2), np.float],
-    stage_pos: NDArray[(Any, 3), np.float]):
+    stage_pos: NDArray[(Any, 3), np.float],
+):
     """対応点情報から最適なARマーカー世界座標を求める
 
     Args:
@@ -293,6 +294,7 @@ def optimize_id_to_xyz(
     Returns:
         ndarray: ARマーカーIDから世界座標を得る配列
     """
+
     def golden_search(
         xyz_index: int,
         error: float,
@@ -351,6 +353,7 @@ def optimize_id_to_xyz(
         return x1, rmse_1
 
     id_to_xyz_optimized = np.copy(_AR_ID_TO_WORLD_XYZ_40X40)
+    applied_offset = [0, 0, 0]
 
     for err, halfwidth in zip((1e-4, 1e-6, 1e-8), (0.04, 0.005, 0.001)):
         best_z_offset, best_rmse = golden_search(
@@ -358,17 +361,27 @@ def optimize_id_to_xyz(
         )
         print(f"best Z offset is {best_z_offset:+.6f}, RMSE:{np.sum(best_rmse):.6f}")
         id_to_xyz_optimized[:, 2] = id_to_xyz_optimized[:, 2] + best_z_offset
+        applied_offset[2] += best_z_offset
 
         best_x_offset, best_rmse = golden_search(
             0, err, -halfwidth, halfwidth, id_to_xyz_optimized
         )
         print(f"best X offset is {best_x_offset:+.6f}, RMSE:{np.sum(best_rmse):.6f}")
         id_to_xyz_optimized[:, 0] = id_to_xyz_optimized[:, 0] + best_x_offset
+        applied_offset[0] += best_x_offset
 
         best_y_offset, best_rmse = golden_search(
             1, err, -halfwidth, halfwidth, id_to_xyz_optimized
         )
         print(f"best Y offset is {best_y_offset:+.6f}, RMSE:{np.sum(best_rmse):.6f}")
         id_to_xyz_optimized[:, 1] = id_to_xyz_optimized[:, 1] + best_y_offset
+        applied_offset[1] += best_y_offset
+
+    print(
+        f"applied offset is ("
+        + f"{applied_offset[0]:+.6f}, "
+        + f"{applied_offset[1]:+.6f}, "
+        + f"{applied_offset[2]:+.6f})"
+    )
 
     return id_to_xyz_optimized
