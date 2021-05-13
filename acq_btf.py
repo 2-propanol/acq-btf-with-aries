@@ -141,7 +141,7 @@ def main() -> int:
 
         # 素材の四隅がカメラのどこに写るか計算する
         world_rot = rot_matrix_from_pan_tilt_roll(xyzu[0], xyzu[1], xyzu[2])
-        material_edges = np.array(WORLD_LT_RT_LB_RB, dtype=np.float)
+        material_edges = np.array(WORLD_LT_RT_LB_RB, dtype=np.float64)
         material_edges = world_rot @ material_edges.T
         src_imgpoints = wrap_homogeneous_dot(obj_to_img_mat, material_edges.T)
 

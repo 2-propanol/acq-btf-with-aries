@@ -64,9 +64,9 @@ def test_ar_reader() -> bool:
             # 各ARマーカーについて
             for ar_corner in corners:
                 # カメラに写った中心座標を計算
-                ar_center = ar_corner[0].mean(axis=0)
+                ar_center = ar_corner[0].mean(axis=0).astype(np.int32)
                 frame = cv2.circle(
-                    frame, tuple(ar_center.astype(np.int)), 7, (0, 0, 255), -1
+                    frame, tuple(ar_center), 7, (0, 0, 255), -1
                 )
 
         frame = cv2.resize(frame, None, fx=0.5, fy=0.5)
@@ -82,7 +82,7 @@ def test_ar_reader() -> bool:
             return True
 
 
-def get_corresponds() -> NDArray[(Any, 5), np.float]:
+def get_corresponds() -> NDArray[(Any, 5), np.float64]:
     """4軸ステージを動かして、ARマーカーの画像座標とステージ位置の対応点を得る
 
     Returns:
@@ -212,7 +212,7 @@ if __name__ == "__main__":
         print(f"saved raw corresponding points to [{FILENAME_TO_SAVE_CORRESPONDS}]")
 
     # 対応点からカメラ行列を計算する。
-    ar_id = corresponds[:, 0].astype(np.int)
+    ar_id = corresponds[:, 0].astype(np.int32)
     ar_center = corresponds[:, 1:3]
     stage_pos = corresponds[:, 3:6]
     id_to_xyz = optimize_id_to_xyz(ar_id, ar_center, stage_pos)

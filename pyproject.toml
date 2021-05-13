@@ -1,8 +1,9 @@
 [tool.poetry]
 name = "acq-btf-with-aries"
-version = "0.1.0"
-description = ""
-authors = ["Your Name <you@example.com>"]
+version = "0.2.0"
+description = "Acquiring BTF with the Aries 4-axis stage."
+authors = ["2-propanol <nuclear.fusion.247@gmail.com>"]
+license = "zlib license"
 
 [tool.poetry.dependencies]
 python = "^3.8"

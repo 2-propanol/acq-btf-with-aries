@@ -11,12 +11,15 @@ from scipy.spatial.transform import Rotation
 ## 20x20画素ARマーカープレート
 _AR_ID_TO_WORLD_XYZ_20X20 = np.array(
     (
+        # fmt: off
         (-0.7, -0.7, 0.0),
         (0.0, -0.7, 0.0),
         (0.7, -0.7, 0.0),
+
         (-0.7, 0.0, 0.0),
         (0.0, 0.0, 0.0),
         (0.7, 0.0, 0.0),
+
         (-0.7, 0.7, 0.0),
         (0.0, 0.7, 0.0),
         (0.7, 0.7, 0.0),
@@ -26,26 +29,31 @@ _AR_ID_TO_WORLD_XYZ_20X20 = np.array(
 ## 40x40画素ARマーカープレート
 _AR_ID_TO_WORLD_XYZ_40X40 = np.array(
     (
+        # fmt: off
         (-0.85, -0.85, 0.0),
         (-0.50, -0.85, 0.0),
         (0.00, -0.85, 0.0),
         (0.35, -0.85, 0.0),
         (0.75, -0.85, 0.0),
+
         (-0.85, -0.45, 0.0),
         (-0.50, -0.35, 0.0),
         (-0.05, -0.50, 0.0),
         (0.30, -0.35, 0.0),
         (0.85, -0.40, 0.0),
+
         (-0.85, 0.10, 0.0),
         (-0.45, 0.05, 0.0),
         (-0.05, -0.05, 0.0),
         (0.30, 0.00, 0.0),
         (0.65, -0.05, 0.0),
+
         (-0.75, 0.50, 0.0),
         (-0.40, 0.40, 0.0),
         (-0.05, 0.30, 0.0),
         (0.40, 0.35, 0.0),
         (0.80, 0.30, 0.0),
+
         (-0.80, 0.85, 0.0),
         (-0.40, 0.75, 0.0),
         (-0.05, 0.85, 0.0),
@@ -57,7 +65,7 @@ _AR_ID_TO_WORLD_XYZ_40X40 = np.array(
 
 def rot_matrix_from_pan_tilt_roll(
     pan: float, tilt: float, roll: float
-) -> NDArray[(3, 3), np.float]:
+) -> NDArray[(3, 3), np.float64]:
     """ステージの回転による移動先の世界座標を得るための行列を求める。
 
     世界座標の原点は素材の中心、カメラから素材の向きをz軸の正の方向とした右手座標系。
@@ -82,7 +90,7 @@ def rot_matrix_from_pan_tilt_roll(
         roll (float): [0, 360)
 
     Returns:
-        ndarray: 回転行列。dtype=np.float, shape=(3, 3)
+        ndarray: 回転行列。dtype=np.float64, shape=(3, 3)
     """
     # degree を radian に変換
     pan_radian = np.deg2rad(pan)
@@ -104,14 +112,14 @@ def rot_matrix_from_pan_tilt_roll(
     return rot
 
 
-def obj_and_img_points_from_csv(filepath: str) -> NDArray[(Any, 5), np.float]:
+def obj_and_img_points_from_csv(filepath: str) -> NDArray[(Any, 5), np.float64]:
     """キャリブレーション用csvから、世界座標とカメラ座標の組を返す。
 
     Args:
         filepath (str): pan, tilt, roll, corner, x, yの列を持つcsvファイルのパス。行数N。
 
     Returns:
-        ndarray: dtype=np.float, shape=(N, 5)。
+        ndarray: dtype=np.float64, shape=(N, 5)。
                  世界座標は[:, 0:3]、カメラ座標は[:, 3:5]。
     """
 
@@ -138,7 +146,7 @@ def obj_and_img_points_from_csv(filepath: str) -> NDArray[(Any, 5), np.float]:
 
 def no_calib(
     pictured_size: Tuple[float, float], center_point: Tuple[float, float]
-) -> NDArray[(3, 4), np.float]:
+) -> NDArray[(3, 4), np.float64]:
     """正面画像で写った素材の大きさと中心点から、世界座標とカメラ座標の変換行列を求める。
 
     ・画角0度（テレセントリック）
@@ -151,7 +159,7 @@ def no_calib(
         center_point (float, float): 正面画像で写った素材の中心点
 
     Returns:
-        ndarray: カメラパラメータ行列。dtype=np.float, shape=(3, 4)
+        ndarray: カメラパラメータ行列。dtype=np.float64, shape=(3, 4)
     """
     C = np.array(
         [
@@ -164,15 +172,15 @@ def no_calib(
 
 
 def calib_by_points(
-    obj_and_img_points: NDArray[(Any, 5), np.float]
-) -> NDArray[(Any, 4), np.float]:
+    obj_and_img_points: NDArray[(Any, 5), np.float64]
+) -> NDArray[(Any, 4), np.float64]:
     """世界座標とカメラ座標の対応点からカメラパラメータ行列を求める。
 
     Args:
-        obj_and_img_points (ndarray): dtype=np.float, shape=(N, 5)
+        obj_and_img_points (ndarray): dtype=np.float64, shape=(N, 5)
 
     Returns:
-        ndarray: カメラパラメータ行列。dtype=np.float, shape=(3, 4)
+        ndarray: カメラパラメータ行列。dtype=np.float64, shape=(3, 4)
     """
     N = len(obj_and_img_points)
     A = np.zeros((N * 2, 11))
@@ -192,9 +200,9 @@ def calib_by_points(
 
 
 def wrap_homogeneous_dot(
-    matrix: NDArray[(3, 4), np.float],
-    objpoints: Union[NDArray[(Any, 3), np.float], NDArray[3, np.float]],
-) -> Union[NDArray[(Any, 2), np.float], NDArray[2, np.float]]:
+    matrix: NDArray[(3, 4), np.float64],
+    objpoints: Union[NDArray[(Any, 3), np.float64], NDArray[3, np.float64]],
+) -> Union[NDArray[(Any, 2), np.float64], NDArray[2, np.float64]]:
     """3x1行列 = 3x4行列 @ 4x1行列のラッパー。3点をから2点を得る。
 
     Args:
@@ -202,7 +210,7 @@ def wrap_homogeneous_dot(
         objpoints (ndarray): 世界座標X, Y, Z。単数でも複数でも良い。
 
     Returns:
-        ndarray: カメラ座標x, y。dtype=np.float, shape=(N, 2) or (2,)
+        ndarray: カメラ座標x, y。dtype=np.float64, shape=(N, 2) or (2,)
     """
     if objpoints.ndim == 1:
         if objpoints.shape[0] == 3:
@@ -223,14 +231,14 @@ def wrap_homogeneous_dot(
 
 
 def calibed_rmse(
-    camera_matrix: NDArray[(3, 4), np.float],
-    obj_and_img_points: NDArray[(Any, 5), np.float],
-) -> Tuple[NDArray[(2,), np.float], NDArray[(Any, 2), np.float]]:
+    camera_matrix: NDArray[(3, 4), np.float64],
+    obj_and_img_points: NDArray[(Any, 5), np.float64],
+) -> Tuple[NDArray[(2,), np.float64], NDArray[(Any, 2), np.float64]]:
     """キャリブレーションの精度を確認する（RMSEとdiffを返す）
 
     Args:
         camera_matrix (ndarray): 3x4カメラパラメータ行列
-        obj_and_img_points (ndarray): dtype=np.float, shape=(N, 5)
+        obj_and_img_points (ndarray): dtype=np.float64, shape=(N, 5)
 
     Returns:
         tuple: 「xとyについてのRMSE」と「各対応点に対する再投影誤差」のタプル
@@ -245,12 +253,14 @@ def calibed_rmse(
 
 
 def raw_xyz_to_cam_mat(
-    ar_id: NDArray[(Any,), np.int],
-    ar_center: NDArray[(Any, 2), np.float],
-    stage_pos: NDArray[(Any, 3), np.float],
-    id_to_xyz: NDArray[(Any, 3), np.float],
+    ar_id: NDArray[(Any,), np.int32],
+    ar_center: NDArray[(Any, 2), np.float64],
+    stage_pos: NDArray[(Any, 3), np.float64],
+    id_to_xyz: NDArray[(Any, 3), np.float64],
 ) -> Tuple[
-    NDArray[(3, 4), np.float], NDArray[(2,), np.float], NDArray[(Any, 2), np.float]
+    NDArray[(3, 4), np.float64],
+    NDArray[(2,), np.float64],
+    NDArray[(Any, 2), np.float64],
 ]:
     """ARマーカーとステージ位置から3x4カメラパラメータ行列を得る
 
@@ -280,9 +290,9 @@ def raw_xyz_to_cam_mat(
 
 
 def optimize_id_to_xyz(
-    ar_id: NDArray[(Any,), np.int],
-    ar_center: NDArray[(Any, 2), np.float],
-    stage_pos: NDArray[(Any, 3), np.float],
+    ar_id: NDArray[(Any,), np.int32],
+    ar_center: NDArray[(Any, 2), np.float64],
+    stage_pos: NDArray[(Any, 3), np.float64],
 ):
     """対応点情報から最適なARマーカー世界座標を求める
 
@@ -301,7 +311,7 @@ def optimize_id_to_xyz(
         low: float,
         high: float,
         id_to_xyz_base: np.ndarray,
-    ) -> Tuple[float, NDArray[(2,), np.float]]:
+    ) -> Tuple[float, NDArray[(2,), np.float64]]:
         """最適なARマーカー世界座標オフセットを黄金分割探索により求める
 
         Args:
@@ -316,7 +326,7 @@ def optimize_id_to_xyz(
         """
         PHI = (1.0 + 5 ** (1 / 2)) / 2
 
-        def offset_to_rmse(offset: float, index: int) -> NDArray[(2,), np.float]:
+        def offset_to_rmse(offset: float, index: int) -> NDArray[(2,), np.float64]:
             """`index`を`offset`したときのRMSEを求める
 
             Args:

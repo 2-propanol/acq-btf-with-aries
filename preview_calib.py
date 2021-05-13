@@ -54,11 +54,11 @@ def main():
         world_lt_rt_lb_rb = rot @ np.array(WORLD_LT_RT_LB_RB).T
         camera_lt_rt_lb_rb = calib_utils.wrap_homogeneous_dot(
             cam_mat, world_lt_rt_lb_rb.T
-        )
-        camera_lt = tuple(camera_lt_rt_lb_rb[0].astype(np.int))
-        camera_rt = tuple(camera_lt_rt_lb_rb[1].astype(np.int))
-        camera_lb = tuple(camera_lt_rt_lb_rb[2].astype(np.int))
-        camera_rb = tuple(camera_lt_rt_lb_rb[3].astype(np.int))
+        ).astype(np.int32)
+        camera_lt = tuple(camera_lt_rt_lb_rb[0])
+        camera_rt = tuple(camera_lt_rt_lb_rb[1])
+        camera_lb = tuple(camera_lt_rt_lb_rb[2])
+        camera_rb = tuple(camera_lt_rt_lb_rb[3])
 
         # 中心ガイド線
         frame_preview = cv2.line(
